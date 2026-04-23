@@ -1,0 +1,22 @@
+node_modules
+.pnpm-store
+dist
+coverage
+.turbo
+.DS_Store
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# Vite
+apps/web/dist
+
+# NestJS
+apps/api/dist
+
+
+generated/prisma
+
+.idea
