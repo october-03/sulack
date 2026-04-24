@@ -10,4 +10,192 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  schemas  = ["public", "auth"]
+}
+
+enum ChannelVisibility {
+  public
+  private
+
+  @@schema("public")
+}
+
+enum ChannelMemberRole {
+  member
+  admin
+
+  @@schema("public")
+}
+
+enum MessageType {
+  text
+  system
+  file
+
+  @@schema("public")
+}
+
+model Profile {
+  id                        String                     @id @db.Uuid
+  email                     String                     @unique
+  displayName               String                     @map("display_name")
+  avatarUrl                 String?                    @map("avatar_url")
+  statusMessage             String?                    @map("status_message")
+  isDeleted                 Boolean                    @default(false) @map("is_deleted")
+  createdAt                 DateTime                   @default(now()) @map("created_at")
+  updatedAt                 DateTime                   @default(now()) @updatedAt @map("updated_at")
+  authUser                  AuthUser                   @relation(fields: [id], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "profiles_id_auth_users_fkey")
+  createdChannels           Channel[]                  @relation("ChannelCreatedBy")
+  channelMembers            ChannelMember[]
+  directConversationMembers DirectConversationMember[]
+  authoredMessages          Message[]                  @relation("MessageAuthor")
+  uploadedAttachments       Attachment[]               @relation("AttachmentUploadedBy")
+  channelReadStates         ChannelReadState[]
+  conversationReadStates    ConversationReadState[]
+
+  @@map("profiles")
+  @@schema("public")
+}
+
+model AuthUser {
+  id      String   @id @db.Uuid
+  profile Profile?
+
+  @@map("users")
+  @@schema("auth")
+}
+
+model Channel {
+  id          String             @id @default(uuid()) @db.Uuid
+  name        String
+  description String?
+  visibility  ChannelVisibility
+  createdById String             @map("created_by") @db.Uuid
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+  createdBy   Profile            @relation("ChannelCreatedBy", fields: [createdById], references: [id])
+  members     ChannelMember[]
+  messages    Message[]
+  readStates  ChannelReadState[]
+
+  @@index([createdById])
+  @@map("channels")
+  @@schema("public")
+}
+
+model ChannelMember {
+  id        String            @id @default(uuid()) @db.Uuid
+  channelId String            @map("channel_id") @db.Uuid
+  userId    String            @map("user_id") @db.Uuid
+  role      ChannelMemberRole @default(member)
+  joinedAt  DateTime          @default(now()) @map("joined_at")
+  channel   Channel           @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user      Profile           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@index([userId])
+  @@map("channel_members")
+  @@schema("public")
+}
+
+model DirectConversation {
+  id         String                     @id @default(uuid()) @db.Uuid
+  createdAt  DateTime                   @default(now()) @map("created_at")
+  members    DirectConversationMember[]
+  messages   Message[]
+  readStates ConversationReadState[]
+
+  @@map("direct_conversations")
+  @@schema("public")
+}
+
+model DirectConversationMember {
+  id             String             @id @default(uuid()) @db.Uuid
+  conversationId String             @map("conversation_id") @db.Uuid
+  userId         String             @map("user_id") @db.Uuid
+  joinedAt       DateTime           @default(now()) @map("joined_at")
+  conversation   DirectConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           Profile            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("direct_conversation_members")
+  @@schema("public")
+}
+
+model Message {
+  id                 String                  @id @default(uuid()) @db.Uuid
+  channelId          String?                 @map("channel_id") @db.Uuid
+  conversationId     String?                 @map("conversation_id") @db.Uuid
+  authorId           String                  @map("author_id") @db.Uuid
+  content            String
+  messageType        MessageType             @default(text) @map("message_type")
+  createdAt          DateTime                @default(now()) @map("created_at")
+  updatedAt          DateTime                @updatedAt @map("updated_at")
+  deletedAt          DateTime?               @map("deleted_at")
+  channel            Channel?                @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  conversation       DirectConversation?     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  author             Profile                 @relation("MessageAuthor", fields: [authorId], references: [id])
+  attachments        Attachment[]
+  channelReadBy      ChannelReadState[]      @relation("ChannelReadStateLastReadMessage")
+  conversationReadBy ConversationReadState[] @relation("ConversationReadStateLastReadMessage")
+
+  @@index([channelId, createdAt])
+  @@index([conversationId, createdAt])
+  @@index([authorId, createdAt])
+  @@map("messages")
+  @@schema("public")
+}
+
+model Attachment {
+  id            String   @id @default(uuid()) @db.Uuid
+  messageId     String   @map("message_id") @db.Uuid
+  storageBucket String   @map("storage_bucket")
+  storagePath   String   @map("storage_path")
+  originalName  String   @map("original_name")
+  mimeType      String   @map("mime_type")
+  sizeBytes     BigInt   @map("size_bytes")
+  uploadedById  String   @map("uploaded_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+  message       Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  uploadedBy    Profile  @relation("AttachmentUploadedBy", fields: [uploadedById], references: [id])
+
+  @@index([messageId])
+  @@index([uploadedById])
+  @@map("attachments")
+  @@schema("public")
+}
+
+model ChannelReadState {
+  id                String    @id @default(uuid()) @db.Uuid
+  channelId         String    @map("channel_id") @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+  lastReadMessageId String?   @map("last_read_message_id") @db.Uuid
+  lastReadAt        DateTime? @map("last_read_at")
+  channel           Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user              Profile   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadMessage   Message?  @relation("ChannelReadStateLastReadMessage", fields: [lastReadMessageId], references: [id])
+
+  @@unique([channelId, userId])
+  @@index([userId])
+  @@index([lastReadMessageId])
+  @@map("channel_read_states")
+  @@schema("public")
+}
+
+model ConversationReadState {
+  id                String             @id @default(uuid()) @db.Uuid
+  conversationId    String             @map("conversation_id") @db.Uuid
+  userId            String             @map("user_id") @db.Uuid
+  lastReadMessageId String?            @map("last_read_message_id") @db.Uuid
+  lastReadAt        DateTime?          @map("last_read_at")
+  conversation      DirectConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user              Profile            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadMessage   Message?           @relation("ConversationReadStateLastReadMessage", fields: [lastReadMessageId], references: [id])
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@index([lastReadMessageId])
+  @@map("conversation_read_states")
+  @@schema("public")
 }
