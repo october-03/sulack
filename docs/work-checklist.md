@@ -57,9 +57,9 @@
 
 ### 3. 인증과 사용자 프로필
 
-- [ ] Web에 Supabase client 설치 및 설정
-- [ ] 로그인 / 로그아웃 UI 구현
-- [ ] 세션 유지 처리
+- [x] Web에 Supabase client 설치 및 설정
+- [x] 로그인 / 로그아웃 UI 구현
+- [x] 세션 유지 처리
 - [ ] API에서 Supabase JWT 검증 구조 추가
 - [ ] 현재 사용자 추출 가드 또는 데코레이터 추가
 - [ ] `profiles` 조회 / 수정 API 구현

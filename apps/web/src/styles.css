@@ -27,6 +27,11 @@ body {
   min-height: 100vh;
 }
 
+button,
+input {
+  font: inherit;
+}
+
 #root {
   min-height: 100vh;
 }
@@ -39,7 +44,7 @@ body {
 }
 
 .hero {
-  width: min(720px, 100%);
+  width: min(960px, 100%);
   padding: 40px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 28px;
@@ -70,22 +75,142 @@ body {
   color: rgba(245, 247, 255, 0.8);
 }
 
-.status-card {
-  margin-top: 28px;
+.panel-grid {
+  margin-top: 32px;
   display: grid;
-  gap: 6px;
-  padding: 18px 20px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.08);
+  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.9fr);
+  gap: 20px;
 }
 
+.auth-card,
+.status-card {
+  display: grid;
+  gap: 14px;
+  padding: 24px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.card-heading h2 {
+  margin: 4px 0 0;
+  font-size: 1.8rem;
+}
+
+.card-kicker {
+  color: rgba(245, 247, 255, 0.64);
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.auth-form,
+.session-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+}
+
+.field span,
 .status-card span,
 .status-card small {
   color: rgba(245, 247, 255, 0.72);
 }
 
+.field input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  color: #f5f7ff;
+  background: rgba(7, 17, 31, 0.58);
+  outline: none;
+  transition:
+    border-color 160ms ease,
+    transform 160ms ease,
+    background 160ms ease;
+}
+
+.field input::placeholder {
+  color: rgba(245, 247, 255, 0.42);
+}
+
+.field input:focus {
+  border-color: rgba(255, 177, 92, 0.95);
+  background: rgba(7, 17, 31, 0.78);
+  transform: translateY(-1px);
+}
+
+.primary-button {
+  padding: 14px 18px;
+  border: 0;
+  border-radius: 14px;
+  color: #07111f;
+  background: linear-gradient(135deg, #ffcb8f 0%, #ff8c61 100%);
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease;
+}
+
+.primary-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(255, 140, 97, 0.2);
+}
+
+.primary-button:disabled {
+  opacity: 0.72;
+  cursor: wait;
+}
+
+.secondary-tone {
+  color: #f5f7ff;
+  background: linear-gradient(135deg, rgba(31, 93, 214, 0.9) 0%, rgba(15, 163, 177, 0.88) 100%);
+}
+
+.helper-text,
+.error-message {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.helper-text {
+  color: rgba(245, 247, 255, 0.72);
+}
+
+.error-message {
+  color: #ff9d92;
+}
+
+.session-summary {
+  display: grid;
+  gap: 6px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: rgba(7, 17, 31, 0.45);
+}
+
+.session-summary strong,
 .status-card strong {
   font-size: 1.4rem;
+}
+
+.status-divider {
+  width: 100%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 860px) {
+  .panel-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {
@@ -93,4 +218,3 @@ body {
     padding: 28px;
   }
 }
-
