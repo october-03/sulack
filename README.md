@@ -87,10 +87,17 @@ MVP에서는 아래 기능을 우선 구현합니다.
 
 ```bash
 pnpm install
+cp apps/web/.env.example apps/web/.env
 pnpm dev
 ```
 
-환경 변수와 Supabase 연동 설정은 이후 구현 단계에서 `apps/api`, `apps/web` 각각에 맞춰 추가합니다.
+`apps/web/.env`에는 아래 값들을 채워 넣습니다.
+
+- `VITE_API_BASE_URL`
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+API와 DB용 환경 변수는 이후 구현 단계에서 `apps/api`에 추가합니다.
 
 ## Scripts
 

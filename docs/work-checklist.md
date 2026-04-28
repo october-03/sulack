@@ -32,7 +32,7 @@
 - [x] API health check endpoint 구성
 - [x] Prisma runtime service와 module 연결
 - [x] `apps/api/.env.example` 작성
-- [ ] `apps/web/.env.example` 작성
+- [x] `apps/web/.env.example` 작성
 
 이 단계의 다음 액션:
 

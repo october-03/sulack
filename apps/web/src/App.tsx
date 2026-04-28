@@ -5,11 +5,13 @@ type HealthResponse = {
   timestamp: string;
 };
 
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+
 function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
 
   useEffect(() => {
-    void fetch('http://localhost:3000/health')
+    void fetch(`${apiBaseUrl}/health`)
       .then(async (response) => response.json() as Promise<HealthResponse>)
       .then((data) => setHealth(data))
       .catch(() => setHealth(null));
@@ -35,4 +37,3 @@ function App() {
 }
 
 export default App;
-
