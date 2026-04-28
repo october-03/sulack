@@ -4,8 +4,8 @@ import { AuthGuard } from './auth.guard';
 import { AuthService } from './auth.service';
 
 @Module({
-  controllers: [AuthController],
-  providers: [AuthService, AuthGuard],
-  exports: [AuthService, AuthGuard],
+	controllers: [AuthController],
+	providers: [AuthService, AuthGuard],
+	exports: [AuthService, AuthGuard]
 })
 export class AuthModule {}

@@ -4,29 +4,26 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
 
 @Injectable()
-export class PrismaService
-  extends PrismaClient
-  implements OnModuleInit, OnModuleDestroy
-{
-  constructor(configService: ConfigService) {
-    const databaseUrl = configService.get<string>('DATABASE_URL');
+export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+	constructor(configService: ConfigService) {
+		const databaseUrl = configService.get<string>('DATABASE_URL');
 
-    if (!databaseUrl) {
-      throw new Error('DATABASE_URL is required for Prisma runtime connections.');
-    }
+		if (!databaseUrl) {
+			throw new Error('DATABASE_URL is required for Prisma runtime connections.');
+		}
 
-    const adapter = new PrismaPg({
-      connectionString: databaseUrl,
-    });
+		const adapter = new PrismaPg({
+			connectionString: databaseUrl
+		});
 
-    super({ adapter });
-  }
+		super({ adapter });
+	}
 
-  async onModuleInit() {
-    await this.$connect();
-  }
+	async onModuleInit() {
+		await this.$connect();
+	}
 
-  async onModuleDestroy() {
-    await this.$disconnect();
-  }
+	async onModuleDestroy() {
+		await this.$disconnect();
+	}
 }
