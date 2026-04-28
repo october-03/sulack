@@ -48,7 +48,7 @@
 - [x] `channel_read_states`, `conversation_read_states` 모델 정의
 - [x] 초기 migration 생성
 - [x] `profiles` 자동 생성 trigger migration 추가
-- [ ] seed 데이터 전략 수립
+- [x] seed 데이터 전략 수립 (`docs/seed-data-strategy.md`)
 
 이 단계의 다음 액션:
 

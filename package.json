@@ -6,6 +6,7 @@
     "dev": "pnpm -r --parallel dev",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
+    "seed": "pnpm --filter @sulack/api seed",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
@@ -22,4 +23,3 @@
     "typescript-eslint": "^8.20.0"
   }
 }
-
