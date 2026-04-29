@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { ChannelMemberRole, ChannelVisibility, type Prisma } from '../generated/prisma/client';
 import type { SupabaseUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
@@ -18,6 +18,20 @@ const channelSummaryInclude = {
 		}
 	}
 } satisfies Prisma.ChannelInclude;
+
+const buildChannelSummaryInclude = (userId: string) =>
+	({
+		...channelSummaryInclude,
+		members: {
+			where: {
+				userId
+			},
+			select: {
+				role: true,
+				joinedAt: true
+			}
+		}
+	}) satisfies Prisma.ChannelInclude;
 
 @Injectable()
 export class ChannelsService {
@@ -45,22 +59,7 @@ export class ChannelsService {
 					}
 				}
 			},
-			include: {
-				members: {
-					where: {
-						userId: user.id
-					},
-					select: {
-						role: true,
-						joinedAt: true
-					}
-				},
-				_count: {
-					select: {
-						members: true
-					}
-				}
-			}
+			include: buildChannelSummaryInclude(user.id)
 		});
 	}
 
@@ -87,18 +86,7 @@ export class ChannelsService {
 					createdAt: 'asc'
 				}
 			],
-			include: {
-				...channelSummaryInclude,
-				members: {
-					where: {
-						userId: user.id
-					},
-					select: {
-						role: true,
-						joinedAt: true
-					}
-				}
-			}
+			include: buildChannelSummaryInclude(user.id)
 		});
 	}
 
@@ -121,18 +109,7 @@ export class ChannelsService {
 					}
 				]
 			},
-			include: {
-				...channelSummaryInclude,
-				members: {
-					where: {
-						userId: user.id
-					},
-					select: {
-						role: true,
-						joinedAt: true
-					}
-				}
-			}
+			include: buildChannelSummaryInclude(user.id)
 		});
 
 		if (!channel) {
@@ -140,5 +117,51 @@ export class ChannelsService {
 		}
 
 		return channel;
+	}
+
+	async joinPublicChannel(user: SupabaseUser, channelId: string): Promise<ChannelSummary> {
+		await this.profilesService.ensureMyProfile(user);
+
+		return this.prismaService.$transaction(async (tx) => {
+			const channel = await tx.channel.findUnique({
+				where: {
+					id: channelId
+				},
+				select: {
+					id: true,
+					visibility: true
+				}
+			});
+
+			if (!channel) {
+				throw new NotFoundException('Channel not found.');
+			}
+
+			if (channel.visibility !== ChannelVisibility.public) {
+				throw new ForbiddenException('Private channels require an invitation.');
+			}
+
+			await tx.channelMember.upsert({
+				where: {
+					channelId_userId: {
+						channelId,
+						userId: user.id
+					}
+				},
+				create: {
+					channelId,
+					userId: user.id,
+					role: ChannelMemberRole.member
+				},
+				update: {}
+			});
+
+			return tx.channel.findUniqueOrThrow({
+				where: {
+					id: channelId
+				},
+				include: buildChannelSummaryInclude(user.id)
+			});
+		});
 	}
 }

@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@n
 import {
 	ApiBearerAuth,
 	ApiCreatedResponse,
+	ApiForbiddenResponse,
 	ApiNotFoundResponse,
 	ApiOkResponse,
 	ApiOperation,
@@ -43,6 +44,20 @@ export class ChannelsController {
 		@Param('channelId', new ParseUUIDPipe()) channelId: string
 	) {
 		const channel = await this.channelsService.getChannel(authUser.user, channelId);
+		return ChannelResponseDto.from(channel);
+	}
+
+	@Post(':channelId/join')
+	@ApiOperation({ summary: 'Join a public channel as the current authenticated user' })
+	@ApiOkResponse({ type: ChannelResponseDto })
+	@ApiForbiddenResponse({
+		description: 'Private channels cannot be joined without an invitation.'
+	})
+	async joinPublicChannel(
+		@CurrentUser() authUser: AuthenticatedRequestUser,
+		@Param('channelId', new ParseUUIDPipe()) channelId: string
+	) {
+		const channel = await this.channelsService.joinPublicChannel(authUser.user, channelId);
 		return ChannelResponseDto.from(channel);
 	}
 
