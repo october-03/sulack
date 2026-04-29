@@ -12,6 +12,8 @@ Sulack의 기획 및 구현 문서를 한 곳에서 보기 위한 인덱스입�
   React, NestJS, Prisma, Supabase Auth/Realtime/Storage/PostgreSQL의 역할을 정리합니다.
 - [DB 설계 초안](./database-schema.md)
   핵심 테이블, 관계, 엔티티 책임과 설계 원칙을 설명합니다.
+- [비공개 채널 초대 정책](./private-channel-invitation-policy.md)
+  비공개 채널의 초대 권한, 참여 방식, API 기준, 예외 처리 정책을 정리합니다.
 - [구현 로드맵](./implementation-roadmap.md)
   구현 순서, 단계별 산출물, 우선순위, 리스크를 정리합니다.
 - [작업 체크리스트](./work-checklist.md)
