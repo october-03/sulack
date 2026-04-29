@@ -182,3 +182,113 @@ export class ChannelListResponseDto {
 		);
 	}
 }
+
+export type ChannelMemberListItem = Prisma.ChannelMemberGetPayload<{
+	select: {
+		role: true;
+		joinedAt: true;
+		user: {
+			select: {
+				id: true;
+				email: true;
+				displayName: true;
+				avatarUrl: true;
+				statusMessage: true;
+			};
+		};
+	};
+}>;
+
+export class ChannelMemberProfileDto {
+	@ApiProperty({
+		example: '2c4d6f9a-1234-4ef0-9f5f-0123456789ab'
+	})
+	@Expose()
+	id!: string;
+
+	@ApiProperty({
+		example: 'alice@sulack.local'
+	})
+	@Expose()
+	email!: string;
+
+	@ApiProperty({
+		example: 'Alice'
+	})
+	@Expose()
+	displayName!: string;
+
+	@ApiPropertyOptional({
+		example: 'https://example.com/alice.png',
+		nullable: true
+	})
+	@Expose()
+	avatarUrl!: string | null;
+
+	@ApiPropertyOptional({
+		example: 'Working on the channels API.',
+		nullable: true
+	})
+	@Expose()
+	statusMessage!: string | null;
+
+	static from(member: ChannelMemberListItem) {
+		return plainToInstance(ChannelMemberProfileDto, member.user, {
+			excludeExtraneousValues: true
+		});
+	}
+}
+
+export class ChannelMemberDto {
+	@ApiProperty({
+		type: ChannelMemberProfileDto
+	})
+	@Expose()
+	user!: ChannelMemberProfileDto;
+
+	@ApiProperty({
+		enum: ChannelMemberRole,
+		example: ChannelMemberRole.member
+	})
+	@Expose()
+	role!: ChannelMemberRole;
+
+	@ApiProperty()
+	@Expose()
+	joinedAt!: Date;
+
+	static from(member: ChannelMemberListItem) {
+		return plainToInstance(
+			ChannelMemberDto,
+			{
+				user: ChannelMemberProfileDto.from(member),
+				role: member.role,
+				joinedAt: member.joinedAt
+			},
+			{
+				excludeExtraneousValues: true
+			}
+		);
+	}
+}
+
+export class ChannelMemberListResponseDto {
+	@ApiProperty({
+		type: ChannelMemberDto,
+		isArray: true
+	})
+	@Expose()
+	members!: ChannelMemberDto[];
+
+	static from(members: ChannelMemberListItem[]) {
+		return plainToInstance(
+			ChannelMemberListResponseDto,
+			{
+				members: members.map((member) => ChannelMemberDto.from(member))
+			},
+			{
+				excludeExtraneousValues: true
+			}
+		);
+	}
+}

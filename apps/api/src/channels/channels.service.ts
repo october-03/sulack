@@ -3,7 +3,7 @@ import { ChannelMemberRole, ChannelVisibility, type Prisma } from '../generated/
 import type { SupabaseUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProfilesService } from '../profiles/profiles.service';
-import { type ChannelSummary, CreateChannelDto } from './channels.dto';
+import { type ChannelMemberListItem, type ChannelSummary, CreateChannelDto } from './channels.dto';
 
 const channelSummaryInclude = {
 	members: {
@@ -236,6 +236,65 @@ export class ChannelsService {
 				},
 				include: buildChannelSummaryInclude(user.id)
 			});
+		});
+	}
+
+	async listChannelMembers(user: SupabaseUser, channelId: string): Promise<ChannelMemberListItem[]> {
+		await this.profilesService.ensureMyProfile(user);
+
+		const channel = await this.prismaService.channel.findFirst({
+			where: {
+				id: channelId,
+				OR: [
+					{
+						visibility: ChannelVisibility.public
+					},
+					{
+						members: {
+							some: {
+								userId: user.id
+							}
+						}
+					}
+				]
+			},
+			select: {
+				id: true
+			}
+		});
+
+		if (!channel) {
+			throw new NotFoundException('Channel not found or inaccessible.');
+		}
+
+		return this.prismaService.channelMember.findMany({
+			where: {
+				channelId,
+				user: {
+					isDeleted: false
+				}
+			},
+			orderBy: [
+				{
+					role: 'asc'
+				},
+				{
+					joinedAt: 'asc'
+				}
+			],
+			select: {
+				role: true,
+				joinedAt: true,
+				user: {
+					select: {
+						id: true,
+						email: true,
+						displayName: true,
+						avatarUrl: true,
+						statusMessage: true
+					}
+				}
+			}
 		});
 	}
 }

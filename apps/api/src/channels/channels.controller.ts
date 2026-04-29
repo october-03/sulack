@@ -14,6 +14,7 @@ import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedRequestUser } from '../auth/auth.types';
 import {
+	ChannelMemberListResponseDto,
 	ChannelListResponseDto,
 	ChannelResponseDto,
 	CreateChannelDto,
@@ -51,6 +52,17 @@ export class ChannelsController {
 	) {
 		const channel = await this.channelsService.getChannel(authUser.user, channelId);
 		return ChannelResponseDto.from(channel);
+	}
+
+	@Get(':channelId/members')
+	@ApiOperation({ summary: 'List members of a channel visible to the current authenticated user' })
+	@ApiOkResponse({ type: ChannelMemberListResponseDto })
+	async listChannelMembers(
+		@CurrentUser() authUser: AuthenticatedRequestUser,
+		@Param('channelId', new ParseUUIDPipe()) channelId: string
+	) {
+		const members = await this.channelsService.listChannelMembers(authUser.user, channelId);
+		return ChannelMemberListResponseDto.from(members);
 	}
 
 	@Post(':channelId/join')
