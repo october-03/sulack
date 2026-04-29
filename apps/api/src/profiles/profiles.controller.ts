@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Query, UseGuards } from '@nestjs/common';
 import {
 	ApiBearerAuth,
 	ApiNotFoundResponse,
@@ -10,7 +10,12 @@ import {
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedRequestUser } from '../auth/auth.types';
-import { ProfileResponseDto, UpdateMyProfileDto } from './profiles.dto';
+import {
+	ProfileResponseDto,
+	SearchProfilesQueryDto,
+	SearchProfilesResponseDto,
+	UpdateMyProfileDto
+} from './profiles.dto';
 import { ProfilesService } from './profiles.service';
 
 @ApiTags('profiles')
@@ -25,6 +30,14 @@ import { ProfilesService } from './profiles.service';
 @UseGuards(AuthGuard)
 export class ProfilesController {
 	constructor(private readonly profilesService: ProfilesService) {}
+
+	@Get('search')
+	@ApiOperation({ summary: 'Search other active user profiles for DM or invitation flows' })
+	@ApiOkResponse({ type: SearchProfilesResponseDto })
+	async searchProfiles(@CurrentUser() authUser: AuthenticatedRequestUser, @Query() query: SearchProfilesQueryDto) {
+		const profiles = await this.profilesService.searchProfiles(authUser.user, query);
+		return SearchProfilesResponseDto.from(profiles);
+	}
 
 	@Get('me')
 	@ApiOperation({ summary: 'Get the current authenticated profile' })

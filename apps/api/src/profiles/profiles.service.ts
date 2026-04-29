@@ -2,7 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import type { Prisma, Profile } from '../generated/prisma/client';
 import type { SupabaseUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
-import { UpdateMyProfileDto } from './profiles.dto';
+import { SearchProfilesQueryDto, UpdateMyProfileDto } from './profiles.dto';
 
 @Injectable()
 export class ProfilesService {
@@ -34,6 +34,45 @@ export class ProfilesService {
 				id: user.id
 			},
 			data
+		});
+	}
+
+	async searchProfiles(user: SupabaseUser, query: SearchProfilesQueryDto): Promise<Profile[]> {
+		await this.ensureMyProfile(user);
+
+		const searchTerm = query.q.trim();
+		const limit = Math.min(query.limit ?? 20, 50);
+
+		return this.prismaService.profile.findMany({
+			where: {
+				id: {
+					not: user.id
+				},
+				isDeleted: false,
+				OR: [
+					{
+						displayName: {
+							contains: searchTerm,
+							mode: 'insensitive'
+						}
+					},
+					{
+						email: {
+							contains: searchTerm,
+							mode: 'insensitive'
+						}
+					}
+				]
+			},
+			orderBy: [
+				{
+					displayName: 'asc'
+				},
+				{
+					email: 'asc'
+				}
+			],
+			take: limit
 		});
 	}
 
