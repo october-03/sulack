@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
 import {
+	ApiBadRequestResponse,
 	ApiBearerAuth,
 	ApiCreatedResponse,
 	ApiForbiddenResponse,
@@ -12,7 +13,12 @@ import {
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedRequestUser } from '../auth/auth.types';
-import { ChannelListResponseDto, ChannelResponseDto, CreateChannelDto } from './channels.dto';
+import {
+	ChannelListResponseDto,
+	ChannelResponseDto,
+	CreateChannelDto,
+	InviteToPrivateChannelDto
+} from './channels.dto';
 import { ChannelsService } from './channels.service';
 
 @ApiTags('channels')
@@ -58,6 +64,24 @@ export class ChannelsController {
 		@Param('channelId', new ParseUUIDPipe()) channelId: string
 	) {
 		const channel = await this.channelsService.joinPublicChannel(authUser.user, channelId);
+		return ChannelResponseDto.from(channel);
+	}
+
+	@Post(':channelId/invitations')
+	@ApiOperation({ summary: 'Invite a user into a private channel as the current authenticated admin' })
+	@ApiOkResponse({ type: ChannelResponseDto })
+	@ApiBadRequestResponse({
+		description: 'Only private channels support this invitation API.'
+	})
+	@ApiForbiddenResponse({
+		description: 'Only private channel admins can invite users.'
+	})
+	async inviteToPrivateChannel(
+		@CurrentUser() authUser: AuthenticatedRequestUser,
+		@Param('channelId', new ParseUUIDPipe()) channelId: string,
+		@Body() payload: InviteToPrivateChannelDto
+	) {
+		const channel = await this.channelsService.inviteToPrivateChannel(authUser.user, channelId, payload.userId);
 		return ChannelResponseDto.from(channel);
 	}
 

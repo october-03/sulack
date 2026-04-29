@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Expose, plainToInstance } from 'class-transformer';
-import { IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { ChannelMemberRole, ChannelVisibility, type Prisma } from '../generated/prisma/client';
 
 export type ChannelSummary = Prisma.ChannelGetPayload<{
@@ -43,6 +43,14 @@ export class CreateChannelDto {
 	})
 	@IsEnum(ChannelVisibility)
 	visibility!: ChannelVisibility;
+}
+
+export class InviteToPrivateChannelDto {
+	@ApiProperty({
+		example: '2c4d6f9a-1234-4ef0-9f5f-0123456789ab'
+	})
+	@IsUUID()
+	userId!: string;
 }
 
 export class ChannelMembershipDto {
