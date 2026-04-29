@@ -1,9 +1,17 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiCreatedResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
+import {
+	ApiBearerAuth,
+	ApiCreatedResponse,
+	ApiNotFoundResponse,
+	ApiOkResponse,
+	ApiOperation,
+	ApiTags,
+	ApiUnauthorizedResponse
+} from '@nestjs/swagger';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedRequestUser } from '../auth/auth.types';
-import { ChannelResponseDto, CreateChannelDto } from './channels.dto';
+import { ChannelListResponseDto, ChannelResponseDto, CreateChannelDto } from './channels.dto';
 import { ChannelsService } from './channels.service';
 
 @ApiTags('channels')
@@ -11,10 +19,32 @@ import { ChannelsService } from './channels.service';
 @ApiUnauthorizedResponse({
 	description: 'Missing, malformed, invalid, or expired bearer token.'
 })
+@ApiNotFoundResponse({
+	description: 'Channel was not found or the authenticated user cannot access it.'
+})
 @Controller('channels')
 @UseGuards(AuthGuard)
 export class ChannelsController {
 	constructor(private readonly channelsService: ChannelsService) {}
+
+	@Get()
+	@ApiOperation({ summary: 'List channels visible to the current authenticated user' })
+	@ApiOkResponse({ type: ChannelListResponseDto })
+	async listChannels(@CurrentUser() authUser: AuthenticatedRequestUser) {
+		const channels = await this.channelsService.listChannels(authUser.user);
+		return ChannelListResponseDto.from(channels);
+	}
+
+	@Get(':channelId')
+	@ApiOperation({ summary: 'Get a channel visible to the current authenticated user' })
+	@ApiOkResponse({ type: ChannelResponseDto })
+	async getChannel(
+		@CurrentUser() authUser: AuthenticatedRequestUser,
+		@Param('channelId', new ParseUUIDPipe()) channelId: string
+	) {
+		const channel = await this.channelsService.getChannel(authUser.user, channelId);
+		return ChannelResponseDto.from(channel);
+	}
 
 	@Post()
 	@ApiOperation({ summary: 'Create a new channel' })

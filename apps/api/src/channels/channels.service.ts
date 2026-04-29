@@ -1,20 +1,23 @@
-import { Injectable } from '@nestjs/common';
-import { ChannelMemberRole, type Prisma } from '../generated/prisma/client';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { ChannelMemberRole, ChannelVisibility, type Prisma } from '../generated/prisma/client';
 import type { SupabaseUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProfilesService } from '../profiles/profiles.service';
-import { CreateChannelDto } from './channels.dto';
+import { type ChannelSummary, CreateChannelDto } from './channels.dto';
 
-type ChannelWithMembership = Prisma.ChannelGetPayload<{
-	include: {
-		members: {
-			select: {
-				role: true;
-				joinedAt: true;
-			};
-		};
-	};
-}>;
+const channelSummaryInclude = {
+	members: {
+		select: {
+			role: true,
+			joinedAt: true
+		}
+	},
+	_count: {
+		select: {
+			members: true
+		}
+	}
+} satisfies Prisma.ChannelInclude;
 
 @Injectable()
 export class ChannelsService {
@@ -23,7 +26,7 @@ export class ChannelsService {
 		private readonly profilesService: ProfilesService
 	) {}
 
-	async createChannel(user: SupabaseUser, payload: CreateChannelDto): Promise<ChannelWithMembership> {
+	async createChannel(user: SupabaseUser, payload: CreateChannelDto): Promise<ChannelSummary> {
 		await this.profilesService.ensureMyProfile(user);
 
 		const trimmedName = payload.name.trim();
@@ -51,8 +54,91 @@ export class ChannelsService {
 						role: true,
 						joinedAt: true
 					}
+				},
+				_count: {
+					select: {
+						members: true
+					}
 				}
 			}
 		});
+	}
+
+	async listChannels(user: SupabaseUser): Promise<ChannelSummary[]> {
+		await this.profilesService.ensureMyProfile(user);
+
+		return this.prismaService.channel.findMany({
+			where: {
+				OR: [
+					{
+						visibility: ChannelVisibility.public
+					},
+					{
+						members: {
+							some: {
+								userId: user.id
+							}
+						}
+					}
+				]
+			},
+			orderBy: [
+				{
+					createdAt: 'asc'
+				}
+			],
+			include: {
+				...channelSummaryInclude,
+				members: {
+					where: {
+						userId: user.id
+					},
+					select: {
+						role: true,
+						joinedAt: true
+					}
+				}
+			}
+		});
+	}
+
+	async getChannel(user: SupabaseUser, channelId: string): Promise<ChannelSummary> {
+		await this.profilesService.ensureMyProfile(user);
+
+		const channel = await this.prismaService.channel.findFirst({
+			where: {
+				id: channelId,
+				OR: [
+					{
+						visibility: ChannelVisibility.public
+					},
+					{
+						members: {
+							some: {
+								userId: user.id
+							}
+						}
+					}
+				]
+			},
+			include: {
+				...channelSummaryInclude,
+				members: {
+					where: {
+						userId: user.id
+					},
+					select: {
+						role: true,
+						joinedAt: true
+					}
+				}
+			}
+		});
+
+		if (!channel) {
+			throw new NotFoundException('Channel not found or inaccessible.');
+		}
+
+		return channel;
 	}
 }

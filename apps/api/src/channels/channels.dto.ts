@@ -3,12 +3,17 @@ import { Expose, plainToInstance } from 'class-transformer';
 import { IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 import { ChannelMemberRole, ChannelVisibility, type Prisma } from '../generated/prisma/client';
 
-type ChannelWithMembership = Prisma.ChannelGetPayload<{
+export type ChannelSummary = Prisma.ChannelGetPayload<{
 	include: {
 		members: {
 			select: {
 				role: true;
 				joinedAt: true;
+			};
+		};
+		_count: {
+			select: {
+				members: true;
 			};
 		};
 	};
@@ -52,7 +57,7 @@ export class ChannelMembershipDto {
 	@Expose()
 	joinedAt!: Date;
 
-	static from(member: ChannelWithMembership['members'][number]) {
+	static from(member: ChannelSummary['members'][number]) {
 		return plainToInstance(ChannelMembershipDto, member, {
 			excludeExtraneousValues: true
 		});
@@ -101,18 +106,25 @@ export class ChannelDto {
 	updatedAt!: Date;
 
 	@ApiProperty({
+		example: 12
+	})
+	@Expose()
+	memberCount!: number;
+
+	@ApiPropertyOptional({
 		type: ChannelMembershipDto
 	})
 	@Expose()
-	membership!: ChannelMembershipDto;
+	membership!: ChannelMembershipDto | null;
 
-	static from(channel: ChannelWithMembership) {
+	static from(channel: ChannelSummary) {
 		const [membership] = channel.members;
 
 		return plainToInstance(
 			ChannelDto,
 			{
 				...channel,
+				memberCount: channel._count.members,
 				membership: membership ? ChannelMembershipDto.from(membership) : null
 			},
 			{
@@ -129,11 +141,32 @@ export class ChannelResponseDto {
 	@Expose()
 	channel!: ChannelDto;
 
-	static from(channel: ChannelWithMembership) {
+	static from(channel: ChannelSummary) {
 		return plainToInstance(
 			ChannelResponseDto,
 			{
 				channel: ChannelDto.from(channel)
+			},
+			{
+				excludeExtraneousValues: true
+			}
+		);
+	}
+}
+
+export class ChannelListResponseDto {
+	@ApiProperty({
+		type: ChannelDto,
+		isArray: true
+	})
+	@Expose()
+	channels!: ChannelDto[];
+
+	static from(channels: ChannelSummary[]) {
+		return plainToInstance(
+			ChannelListResponseDto,
+			{
+				channels: channels.map((channel) => ChannelDto.from(channel))
 			},
 			{
 				excludeExtraneousValues: true
