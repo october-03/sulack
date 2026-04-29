@@ -30,7 +30,7 @@ export class ProfilesController {
 	@ApiOperation({ summary: 'Get the current authenticated profile' })
 	@ApiOkResponse({ type: ProfileResponseDto })
 	async getMyProfile(@CurrentUser() authUser: AuthenticatedRequestUser) {
-		const profile = await this.profilesService.getMyProfile(authUser.user.id);
+		const profile = await this.profilesService.getMyProfile(authUser.user);
 		return ProfileResponseDto.from(profile);
 	}
 
@@ -38,7 +38,7 @@ export class ProfilesController {
 	@ApiOperation({ summary: 'Update the current authenticated profile' })
 	@ApiOkResponse({ type: ProfileResponseDto })
 	async updateMyProfile(@CurrentUser() authUser: AuthenticatedRequestUser, @Body() payload: UpdateMyProfileDto) {
-		const profile = await this.profilesService.updateMyProfile(authUser.user.id, payload);
+		const profile = await this.profilesService.updateMyProfile(authUser.user, payload);
 		return ProfileResponseDto.from(profile);
 	}
 }

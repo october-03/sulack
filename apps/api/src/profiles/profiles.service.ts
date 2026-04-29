@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import type { Prisma, Profile } from '../generated/prisma/client';
+import type { SupabaseUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateMyProfileDto } from './profiles.dto';
 
@@ -7,23 +8,12 @@ import { UpdateMyProfileDto } from './profiles.dto';
 export class ProfilesService {
 	constructor(private readonly prismaService: PrismaService) {}
 
-	async getMyProfile(userId: string): Promise<Profile> {
-		const profile = await this.prismaService.profile.findFirst({
-			where: {
-				id: userId,
-				isDeleted: false
-			}
-		});
-
-		if (!profile) {
-			throw new NotFoundException('Profile not found for the authenticated user.');
-		}
-
-		return profile;
+	async getMyProfile(user: SupabaseUser): Promise<Profile> {
+		return this.ensureMyProfile(user);
 	}
 
-	async updateMyProfile(userId: string, payload: UpdateMyProfileDto): Promise<Profile> {
-		await this.ensureProfileExists(userId);
+	async updateMyProfile(user: SupabaseUser, payload: UpdateMyProfileDto): Promise<Profile> {
+		await this.ensureMyProfile(user);
 
 		const data: Prisma.ProfileUpdateInput = {};
 
@@ -41,25 +31,54 @@ export class ProfilesService {
 
 		return this.prismaService.profile.update({
 			where: {
-				id: userId
+				id: user.id
 			},
 			data
 		});
 	}
 
-	private async ensureProfileExists(userId: string) {
-		const profile = await this.prismaService.profile.findFirst({
+	async ensureMyProfile(user: SupabaseUser): Promise<Profile> {
+		if (!user.email) {
+			throw new BadRequestException('Authenticated Supabase user is missing an email address.');
+		}
+
+		const profile = await this.prismaService.profile.findUnique({
 			where: {
-				id: userId,
-				isDeleted: false
-			},
-			select: {
-				id: true
+				id: user.id
 			}
 		});
 
+		const defaultDisplayName = this.buildDefaultDisplayName(user.email);
+
 		if (!profile) {
-			throw new NotFoundException('Profile not found for the authenticated user.');
+			return this.prismaService.profile.create({
+				data: {
+					id: user.id,
+					email: user.email,
+					displayName: defaultDisplayName
+				}
+			});
 		}
+
+		const needsRepair = profile.isDeleted || profile.email !== user.email || !profile.displayName.trim();
+
+		if (!needsRepair) {
+			return profile;
+		}
+
+		return this.prismaService.profile.update({
+			where: {
+				id: user.id
+			},
+			data: {
+				email: user.email,
+				displayName: profile.displayName.trim() ? profile.displayName : defaultDisplayName,
+				isDeleted: false
+			}
+		});
+	}
+
+	private buildDefaultDisplayName(email: string) {
+		return email.split('@')[0] || 'unknown-user';
 	}
 }
