@@ -36,16 +36,16 @@ input {
 	min-height: 100vh;
 }
 
-.app-shell {
+.workspace-shell {
 	min-height: 100vh;
 	display: grid;
-	place-items: center;
-	padding: 24px;
+	grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+	padding: 20px;
+	gap: 20px;
 }
 
+.sidebar,
 .hero {
-	width: min(960px, 100%);
-	padding: 40px;
 	border: 1px solid rgba(255, 255, 255, 0.12);
 	border-radius: 28px;
 	backdrop-filter: blur(18px);
@@ -53,50 +53,181 @@ input {
 	box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
 }
 
+.sidebar {
+	display: grid;
+	align-content: start;
+	gap: 24px;
+	padding: 28px 22px;
+}
+
+.sidebar-header h1,
+.hero h2,
+.card-heading h3 {
+	margin: 0;
+}
+
 .eyebrow {
-	margin: 0 0 16px;
+	margin: 0 0 14px;
 	font-size: 0.8rem;
 	letter-spacing: 0.2em;
 	text-transform: uppercase;
 	color: #ffb15c;
 }
 
-.hero h1 {
-	margin: 0;
-	font-size: clamp(2.5rem, 6vw, 4.75rem);
-	line-height: 0.95;
-}
-
+.sidebar-copy,
 .description {
-	margin: 20px 0 0;
-	max-width: 56ch;
-	font-size: 1.05rem;
+	margin: 14px 0 0;
 	line-height: 1.7;
 	color: rgba(245, 247, 255, 0.8);
 }
 
-.panel-grid {
-	margin-top: 32px;
+.sidebar-panel {
 	display: grid;
-	grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.9fr);
-	gap: 20px;
+	gap: 16px;
+	min-height: 0;
 }
 
+.sidebar-panel-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	color: rgba(245, 247, 255, 0.74);
+}
+
+.sidebar-panel-heading strong {
+	color: #f5f7ff;
+	font-size: 0.92rem;
+}
+
+.channel-list {
+	display: grid;
+	gap: 12px;
+	max-height: calc(100vh - 230px);
+	overflow-y: auto;
+	padding-right: 4px;
+}
+
+.channel-card {
+	display: grid;
+	gap: 12px;
+	width: 100%;
+	padding: 16px;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 18px;
+	background: rgba(255, 255, 255, 0.05);
+	color: inherit;
+	text-align: left;
+	cursor: pointer;
+	transition:
+		transform 160ms ease,
+		border-color 160ms ease,
+		background 160ms ease,
+		box-shadow 160ms ease;
+}
+
+.channel-card:hover {
+	transform: translateY(-1px);
+	border-color: rgba(255, 177, 92, 0.35);
+	background: rgba(255, 255, 255, 0.08);
+	box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
+}
+
+.channel-card-active {
+	border-color: rgba(255, 177, 92, 0.72);
+	background: linear-gradient(135deg, rgba(255, 177, 92, 0.18) 0%, rgba(19, 79, 179, 0.18) 100%);
+}
+
+.channel-card-top,
+.channel-meta,
+.channel-spotlight {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.channel-card-top strong {
+	font-size: 1rem;
+}
+
+.channel-card-top > div {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.channel-prefix,
+.channel-pill,
+.channel-meta,
+.field span,
+.status-card span,
+.status-card small {
+	color: rgba(245, 247, 255, 0.72);
+}
+
+.channel-prefix {
+	font-weight: 700;
+}
+
+.channel-pill {
+	padding: 4px 10px;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.08);
+	font-size: 0.78rem;
+	text-transform: uppercase;
+}
+
+.channel-card p {
+	margin: 0;
+	font-size: 0.95rem;
+	line-height: 1.55;
+	color: rgba(245, 247, 255, 0.78);
+}
+
+.channel-meta {
+	font-size: 0.83rem;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.content-panel {
+	min-width: 0;
+}
+
+.hero {
+	height: 100%;
+	display: grid;
+	align-content: start;
+	gap: 28px;
+	padding: 36px;
+}
+
+.hero h2 {
+	font-size: clamp(2.2rem, 4.8vw, 4.2rem);
+	line-height: 0.96;
+}
+
+.channel-spotlight {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 16px;
+}
+
+.spotlight-stat,
+.members-panel,
 .auth-card,
 .status-card {
 	display: grid;
 	gap: 14px;
-	padding: 24px;
+	padding: 20px;
 	border-radius: 18px;
 	background: rgba(255, 255, 255, 0.08);
 	border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.card-heading h2 {
-	margin: 4px 0 0;
-	font-size: 1.8rem;
-}
-
+.spotlight-stat span,
 .card-kicker {
 	color: rgba(245, 247, 255, 0.64);
 	font-size: 0.82rem;
@@ -104,21 +235,104 @@ input {
 	text-transform: uppercase;
 }
 
+.spotlight-stat strong,
+.members-panel-heading strong,
+.session-summary strong,
+.status-card strong {
+	font-size: 1.35rem;
+}
+
+.members-panel {
+	gap: 18px;
+}
+
+.members-panel-heading {
+	display: flex;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: 16px;
+}
+
+.members-panel-heading h3 {
+	margin: 4px 0 0;
+	font-size: 1.55rem;
+}
+
+.member-list {
+	display: grid;
+	gap: 12px;
+	max-height: 360px;
+	overflow-y: auto;
+	padding-right: 4px;
+}
+
+.member-card {
+	display: grid;
+	gap: 12px;
+	padding: 16px;
+	border-radius: 18px;
+	background: rgba(255, 255, 255, 0.05);
+	border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.member-card-top {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 12px;
+}
+
+.member-avatar {
+	width: 42px;
+	height: 42px;
+	display: grid;
+	place-items: center;
+	border-radius: 14px;
+	background: linear-gradient(135deg, rgba(255, 177, 92, 0.28) 0%, rgba(31, 93, 214, 0.3) 100%);
+	color: #f5f7ff;
+	font-weight: 700;
+}
+
+.member-copy {
+	display: grid;
+	gap: 2px;
+	min-width: 0;
+}
+
+.member-copy strong,
+.member-copy span,
+.member-card p {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.member-copy span,
+.member-card p {
+	color: rgba(245, 247, 255, 0.72);
+}
+
+.member-card p {
+	margin: 0;
+	line-height: 1.55;
+	white-space: nowrap;
+}
+
+.panel-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.8fr);
+	gap: 20px;
+}
+
 .auth-form,
-.session-stack {
+.session-stack,
+.field,
+.session-summary {
 	display: grid;
 	gap: 16px;
 }
 
 .field {
-	display: grid;
 	gap: 8px;
-}
-
-.field span,
-.status-card span,
-.status-card small {
-	color: rgba(245, 247, 255, 0.72);
 }
 
 .field input {
@@ -189,16 +403,9 @@ input {
 }
 
 .session-summary {
-	display: grid;
-	gap: 6px;
 	padding: 16px 18px;
 	border-radius: 16px;
 	background: rgba(7, 17, 31, 0.45);
-}
-
-.session-summary strong,
-.status-card strong {
-	font-size: 1.4rem;
 }
 
 .status-divider {
@@ -207,14 +414,42 @@ input {
 	background: rgba(255, 255, 255, 0.08);
 }
 
+@media (max-width: 980px) {
+	.workspace-shell {
+		grid-template-columns: 1fr;
+	}
+
+	.channel-list {
+		max-height: 360px;
+	}
+}
+
 @media (max-width: 860px) {
+	.channel-spotlight,
 	.panel-grid {
 		grid-template-columns: 1fr;
 	}
 }
 
 @media (max-width: 640px) {
+	.workspace-shell {
+		padding: 14px;
+	}
+
+	.sidebar,
 	.hero {
-		padding: 28px;
+		padding: 24px 18px;
+		border-radius: 22px;
+	}
+
+	.channel-card-top,
+	.channel-meta,
+	.members-panel-heading {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+
+	.member-card-top {
+		grid-template-columns: auto minmax(0, 1fr);
 	}
 }
