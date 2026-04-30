@@ -39,7 +39,30 @@ type ChannelMembersResponse = {
 	members: ChannelMember[];
 };
 
+type DirectConversationParticipant = {
+	id: string;
+	email: string;
+	displayName: string;
+	avatarUrl: string | null;
+	statusMessage: string | null;
+	joinedAt: string;
+};
+
+type DirectConversationItem = {
+	id: string;
+	createdAt: string;
+	participants: DirectConversationParticipant[];
+};
+
+type DirectConversationListResponse = {
+	conversations: DirectConversationItem[];
+};
+
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+const dmDateFormatter = new Intl.DateTimeFormat('ko-KR', {
+	month: 'short',
+	day: 'numeric'
+});
 
 function App() {
 	const [health, setHealth] = useState<HealthResponse | null>(null);
@@ -50,12 +73,16 @@ function App() {
 	const [channels, setChannels] = useState<ChannelItem[]>([]);
 	const [channelError, setChannelError] = useState<string | null>(null);
 	const [channelMembers, setChannelMembers] = useState<ChannelMember[]>([]);
+	const [directConversations, setDirectConversations] = useState<DirectConversationItem[]>([]);
 	const [channelMembersError, setChannelMembersError] = useState<string | null>(null);
+	const [directConversationError, setDirectConversationError] = useState<string | null>(null);
 	const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
+	const [selectedDirectConversationId, setSelectedDirectConversationId] = useState<string | null>(null);
 	const [isAuthLoading, setIsAuthLoading] = useState(false);
 	const [isSessionLoading, setIsSessionLoading] = useState(true);
 	const [isChannelsLoading, setIsChannelsLoading] = useState(false);
 	const [isChannelMembersLoading, setIsChannelMembersLoading] = useState(false);
+	const [isDirectConversationsLoading, setIsDirectConversationsLoading] = useState(false);
 
 	useEffect(() => {
 		void fetch(`${apiBaseUrl}/health`)
@@ -95,11 +122,15 @@ function App() {
 		if (!session) {
 			setChannels([]);
 			setChannelMembers([]);
+			setDirectConversations([]);
 			setSelectedChannelId(null);
+			setSelectedDirectConversationId(null);
 			setChannelError(null);
 			setChannelMembersError(null);
+			setDirectConversationError(null);
 			setIsChannelsLoading(false);
 			setIsChannelMembersLoading(false);
+			setIsDirectConversationsLoading(false);
 			return;
 		}
 
@@ -150,6 +181,71 @@ function App() {
 		};
 
 		void loadChannels();
+
+		return () => {
+			isCancelled = true;
+		};
+	}, [session]);
+
+	useEffect(() => {
+		if (!session) {
+			setDirectConversations([]);
+			setSelectedDirectConversationId(null);
+			setDirectConversationError(null);
+			setIsDirectConversationsLoading(false);
+			return;
+		}
+
+		let isCancelled = false;
+
+		const loadDirectConversations = async () => {
+			setIsDirectConversationsLoading(true);
+			setDirectConversationError(null);
+
+			try {
+				const response = await fetch(`${apiBaseUrl}/direct-conversations`, {
+					headers: {
+						Authorization: `Bearer ${session.access_token}`
+					}
+				});
+
+				if (!response.ok) {
+					throw new Error(`DM 목록을 불러오지 못했습니다. (${response.status})`);
+				}
+
+				const data = (await response.json()) as DirectConversationListResponse;
+
+				if (isCancelled) {
+					return;
+				}
+
+				setDirectConversations(data.conversations);
+				setSelectedDirectConversationId((currentSelectedDirectConversationId) => {
+					if (
+						currentSelectedDirectConversationId &&
+						data.conversations.some((conversation) => conversation.id === currentSelectedDirectConversationId)
+					) {
+						return currentSelectedDirectConversationId;
+					}
+
+					return data.conversations[0]?.id ?? null;
+				});
+			} catch (error) {
+				if (isCancelled) {
+					return;
+				}
+
+				setDirectConversations([]);
+				setSelectedDirectConversationId(null);
+				setDirectConversationError(error instanceof Error ? error.message : 'DM 목록을 불러오지 못했습니다.');
+			} finally {
+				if (!isCancelled) {
+					setIsDirectConversationsLoading(false);
+				}
+			}
+		};
+
+		void loadDirectConversations();
 
 		return () => {
 			isCancelled = true;
@@ -244,6 +340,23 @@ function App() {
 	const userEmail = session?.user.email ?? 'unknown user';
 	const lastSeen = health?.timestamp ?? 'Start the API server to see live status.';
 	const selectedChannel = channels.find((channel) => channel.id === selectedChannelId) ?? null;
+	const selectedDirectConversation =
+		directConversations.find((conversation) => conversation.id === selectedDirectConversationId) ?? null;
+	const directConversationItems = directConversations.map((conversation) => {
+		const counterpart =
+			conversation.participants.find((participant) => participant.id !== session?.user.id) ??
+			conversation.participants[0];
+
+		return {
+			conversation,
+			counterpart,
+			label: counterpart?.displayName ?? 'Unknown teammate'
+		};
+	});
+	const selectedDirectConversationCounterpart =
+		selectedDirectConversation?.participants.find((participant) => participant.id !== session?.user.id) ??
+		selectedDirectConversation?.participants[0] ??
+		null;
 
 	return (
 		<main className="workspace-shell">
@@ -298,6 +411,56 @@ function App() {
 											<span>{channel.memberCount} members</span>
 											<span>{channel.visibility}</span>
 										</div>
+									</button>
+								);
+							})}
+						</div>
+					) : null}
+				</div>
+
+				<div className="sidebar-panel">
+					<div className="sidebar-panel-heading">
+						<span>Direct Messages</span>
+						<strong>{session ? `${directConversations.length} threads` : 'Sign in required'}</strong>
+					</div>
+
+					{isSessionLoading ? <p className="helper-text">세션을 확인하는 중입니다...</p> : null}
+					{!isSessionLoading && !session ? (
+						<p className="helper-text">로그인 후 현재 사용자의 1:1 DM 목록을 불러옵니다.</p>
+					) : null}
+					{session && isDirectConversationsLoading ? (
+						<p className="helper-text">DM 목록을 불러오는 중입니다...</p>
+					) : null}
+					{session && directConversationError ? <p className="error-message">{directConversationError}</p> : null}
+					{session && !isDirectConversationsLoading && !directConversationError && directConversations.length === 0 ? (
+						<p className="helper-text">
+							아직 시작한 1:1 DM이 없습니다. 사용자 검색과 DM 생성 흐름을 붙이면 여기에 표시됩니다.
+						</p>
+					) : null}
+
+					{session && directConversations.length > 0 ? (
+						<div className="dm-list" role="list" aria-label="Direct messages">
+							{directConversationItems.map(({ conversation, counterpart, label }) => {
+								const isSelected = conversation.id === selectedDirectConversationId;
+
+								return (
+									<button
+										key={conversation.id}
+										type="button"
+										className={`dm-card${isSelected ? ' dm-card-active' : ''}`}
+										onClick={() => setSelectedDirectConversationId(conversation.id)}
+									>
+										<div className="dm-card-top">
+											<div className="member-avatar dm-avatar" aria-hidden="true">
+												{label.slice(0, 1).toUpperCase()}
+											</div>
+											<div className="dm-copy">
+												<strong>{label}</strong>
+												<span>{counterpart?.email ?? 'No email available'}</span>
+											</div>
+											<span className="channel-pill">{dmDateFormatter.format(new Date(conversation.createdAt))}</span>
+										</div>
+										<p>{counterpart?.statusMessage ?? '대화를 시작할 준비가 된 동료입니다.'}</p>
 									</button>
 								);
 							})}
@@ -379,6 +542,50 @@ function App() {
 									</article>
 								))}
 							</div>
+						) : null}
+					</section>
+
+					<section className="members-panel">
+						<div className="members-panel-heading">
+							<div>
+								<span className="card-kicker">Direct Messages</span>
+								<h3>{selectedDirectConversationCounterpart?.displayName ?? 'Select a DM'}</h3>
+							</div>
+							{selectedDirectConversation ? <strong>{selectedDirectConversation.participants.length}</strong> : null}
+						</div>
+
+						{!session ? <p className="helper-text">로그인 후 DM 목록과 상대방 정보를 확인할 수 있습니다.</p> : null}
+						{session && isDirectConversationsLoading ? (
+							<p className="helper-text">DM 목록을 불러오는 중입니다...</p>
+						) : null}
+						{session && !isDirectConversationsLoading && directConversationError ? (
+							<p className="error-message">{directConversationError}</p>
+						) : null}
+						{session &&
+						!isDirectConversationsLoading &&
+						!directConversationError &&
+						directConversations.length === 0 ? (
+							<p className="helper-text">기존 DM이 생기면 이 패널에서 상대방 정보를 빠르게 확인할 수 있습니다.</p>
+						) : null}
+
+						{selectedDirectConversation && selectedDirectConversationCounterpart ? (
+							<article className="member-card dm-detail-card">
+								<div className="member-card-top">
+									<div className="member-avatar member-avatar-large" aria-hidden="true">
+										{selectedDirectConversationCounterpart.displayName.slice(0, 1).toUpperCase()}
+									</div>
+									<div className="member-copy">
+										<strong>{selectedDirectConversationCounterpart.displayName}</strong>
+										<span>{selectedDirectConversationCounterpart.email}</span>
+									</div>
+									<span className="channel-pill">1:1 DM</span>
+								</div>
+								<p>{selectedDirectConversationCounterpart.statusMessage ?? '아직 상태 메시지가 없습니다.'}</p>
+								<div className="channel-meta">
+									<span>Started {dmDateFormatter.format(new Date(selectedDirectConversation.createdAt))}</span>
+									<span>{selectedDirectConversation.id.slice(0, 8)}</span>
+								</div>
+							</article>
 						) : null}
 					</section>
 

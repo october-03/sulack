@@ -108,6 +108,14 @@ input {
 	padding-right: 4px;
 }
 
+.dm-list {
+	display: grid;
+	gap: 12px;
+	max-height: 320px;
+	overflow-y: auto;
+	padding-right: 4px;
+}
+
 .channel-card {
 	display: grid;
 	gap: 12px;
@@ -138,7 +146,38 @@ input {
 	background: linear-gradient(135deg, rgba(255, 177, 92, 0.18) 0%, rgba(19, 79, 179, 0.18) 100%);
 }
 
+.dm-card {
+	display: grid;
+	gap: 12px;
+	width: 100%;
+	padding: 16px;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 18px;
+	background: rgba(255, 255, 255, 0.05);
+	color: inherit;
+	text-align: left;
+	cursor: pointer;
+	transition:
+		transform 160ms ease,
+		border-color 160ms ease,
+		background 160ms ease,
+		box-shadow 160ms ease;
+}
+
+.dm-card:hover {
+	transform: translateY(-1px);
+	border-color: rgba(89, 204, 255, 0.38);
+	background: rgba(255, 255, 255, 0.08);
+	box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
+}
+
+.dm-card-active {
+	border-color: rgba(89, 204, 255, 0.72);
+	background: linear-gradient(135deg, rgba(29, 168, 196, 0.2) 0%, rgba(31, 93, 214, 0.18) 100%);
+}
+
 .channel-card-top,
+.dm-card-top,
 .channel-meta,
 .channel-spotlight {
 	display: flex;
@@ -151,7 +190,13 @@ input {
 	font-size: 1rem;
 }
 
-.channel-card-top > div {
+.channel-card-top > div,
+.dm-card-top {
+	min-width: 0;
+}
+
+.channel-card-top > div,
+.dm-card-top > div {
 	display: flex;
 	align-items: center;
 	gap: 8px;
@@ -184,6 +229,13 @@ input {
 	font-size: 0.95rem;
 	line-height: 1.55;
 	color: rgba(245, 247, 255, 0.78);
+}
+
+.dm-card p {
+	margin: 0;
+	font-size: 0.93rem;
+	line-height: 1.5;
+	color: rgba(245, 247, 255, 0.76);
 }
 
 .channel-meta {
@@ -299,16 +351,47 @@ input {
 	min-width: 0;
 }
 
+.dm-copy {
+	display: grid;
+	gap: 2px;
+	min-width: 0;
+}
+
 .member-copy strong,
+.dm-copy strong,
 .member-copy span,
+.dm-copy span,
 .member-card p {
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
 .member-copy span,
+.dm-copy span,
 .member-card p {
 	color: rgba(245, 247, 255, 0.72);
+}
+
+.dm-copy strong {
+	font-size: 0.98rem;
+}
+
+.dm-avatar {
+	width: 40px;
+	height: 40px;
+	border-radius: 13px;
+	flex-shrink: 0;
+}
+
+.member-avatar-large {
+	width: 56px;
+	height: 56px;
+	border-radius: 18px;
+	font-size: 1.1rem;
+}
+
+.dm-detail-card {
+	background: linear-gradient(135deg, rgba(19, 79, 179, 0.12) 0%, rgba(255, 255, 255, 0.05) 100%);
 }
 
 .member-card p {
@@ -422,6 +505,10 @@ input {
 	.channel-list {
 		max-height: 360px;
 	}
+
+	.dm-list {
+		max-height: 280px;
+	}
 }
 
 @media (max-width: 860px) {
@@ -443,6 +530,7 @@ input {
 	}
 
 	.channel-card-top,
+	.dm-card-top,
 	.channel-meta,
 	.members-panel-heading {
 		align-items: flex-start;
