@@ -66,6 +66,24 @@ export class DirectConversationsService {
 		});
 	}
 
+	async listDirectConversations(user: SupabaseUser): Promise<DirectConversationSummary[]> {
+		await this.profilesService.ensureMyProfile(user);
+
+		return this.prismaService.directConversation.findMany({
+			where: {
+				members: {
+					some: {
+						userId: user.id
+					}
+				}
+			},
+			orderBy: {
+				createdAt: 'desc'
+			},
+			include: directConversationInclude
+		});
+	}
+
 	async getDirectConversationWithUser(user: SupabaseUser, targetUserId: string): Promise<DirectConversationSummary> {
 		await this.profilesService.ensureMyProfile(user);
 		this.assertOtherParticipant(user.id, targetUserId);

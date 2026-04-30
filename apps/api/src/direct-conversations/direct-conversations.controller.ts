@@ -11,7 +11,11 @@ import {
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedRequestUser } from '../auth/auth.types';
-import { CreateDirectConversationDto, DirectConversationResponseDto } from './direct-conversations.dto';
+import {
+	CreateDirectConversationDto,
+	DirectConversationListResponseDto,
+	DirectConversationResponseDto
+} from './direct-conversations.dto';
 import { DirectConversationsService } from './direct-conversations.service';
 
 @ApiTags('direct-conversations')
@@ -23,6 +27,14 @@ import { DirectConversationsService } from './direct-conversations.service';
 @UseGuards(AuthGuard)
 export class DirectConversationsController {
 	constructor(private readonly directConversationsService: DirectConversationsService) {}
+
+	@Get()
+	@ApiOperation({ summary: 'List direct conversations for the current authenticated user' })
+	@ApiOkResponse({ type: DirectConversationListResponseDto })
+	async listDirectConversations(@CurrentUser() authUser: AuthenticatedRequestUser) {
+		const conversations = await this.directConversationsService.listDirectConversations(authUser.user);
+		return DirectConversationListResponseDto.from(conversations);
+	}
 
 	@Get('with/:userId')
 	@ApiOperation({ summary: 'Get an existing 1:1 direct conversation with another active user' })

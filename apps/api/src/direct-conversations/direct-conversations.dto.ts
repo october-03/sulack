@@ -133,3 +133,24 @@ export class DirectConversationResponseDto {
 		);
 	}
 }
+
+export class DirectConversationListResponseDto {
+	@ApiProperty({
+		type: DirectConversationDto,
+		isArray: true
+	})
+	@Expose()
+	conversations!: DirectConversationDto[];
+
+	static from(conversations: DirectConversationSummary[]) {
+		return plainToInstance(
+			DirectConversationListResponseDto,
+			{
+				conversations: conversations.map((conversation) => DirectConversationDto.from(conversation))
+			},
+			{
+				excludeExtraneousValues: true
+			}
+		);
+	}
+}
