@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { ChannelsModule } from './channels/channels.module';
+import { DirectConversationsModule } from './direct-conversations/direct-conversations.module';
 import { ProfilesModule } from './profiles/profiles.module';
 import { PrismaModule } from './prisma/prisma.module';
 
@@ -14,6 +15,7 @@ import { PrismaModule } from './prisma/prisma.module';
 		}),
 		AuthModule,
 		ChannelsModule,
+		DirectConversationsModule,
 		PrismaModule,
 		ProfilesModule
 	],
