@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
 import {
 	ApiBearerAuth,
 	ApiBadRequestResponse,
@@ -11,10 +11,7 @@ import {
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedRequestUser } from '../auth/auth.types';
-import {
-	CreateDirectConversationDto,
-	DirectConversationResponseDto
-} from './direct-conversations.dto';
+import { CreateDirectConversationDto, DirectConversationResponseDto } from './direct-conversations.dto';
 import { DirectConversationsService } from './direct-conversations.service';
 
 @ApiTags('direct-conversations')
@@ -26,6 +23,23 @@ import { DirectConversationsService } from './direct-conversations.service';
 @UseGuards(AuthGuard)
 export class DirectConversationsController {
 	constructor(private readonly directConversationsService: DirectConversationsService) {}
+
+	@Get('with/:userId')
+	@ApiOperation({ summary: 'Get an existing 1:1 direct conversation with another active user' })
+	@ApiOkResponse({ type: DirectConversationResponseDto })
+	@ApiBadRequestResponse({
+		description: 'You cannot look up a direct conversation with yourself.'
+	})
+	@ApiNotFoundResponse({
+		description: 'Target profile or direct conversation was not found.'
+	})
+	async getDirectConversationWithUser(
+		@CurrentUser() authUser: AuthenticatedRequestUser,
+		@Param('userId', new ParseUUIDPipe()) userId: string
+	) {
+		const conversation = await this.directConversationsService.getDirectConversationWithUser(authUser.user, userId);
+		return DirectConversationResponseDto.from(conversation);
+	}
 
 	@Post()
 	@HttpCode(200)
