@@ -529,6 +529,59 @@ textarea {
 	color: rgba(245, 247, 255, 0.84);
 }
 
+.message-edit-form {
+	display: grid;
+	gap: 10px;
+}
+
+.message-edit-form textarea {
+	width: 100%;
+	min-height: 92px;
+	resize: vertical;
+}
+
+.message-actions {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+.message-edit-form .message-actions {
+	justify-content: space-between;
+}
+
+.message-actions small {
+	color: rgba(245, 247, 255, 0.58);
+	font-size: 0.78rem;
+}
+
+.message-action-buttons {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.message-actions button {
+	padding: 7px 10px;
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 10px;
+	color: rgba(245, 247, 255, 0.82);
+	background: rgba(255, 255, 255, 0.06);
+	font-size: 0.78rem;
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.message-actions button:hover:not(:disabled) {
+	background: rgba(255, 255, 255, 0.1);
+}
+
+.message-actions button:disabled {
+	opacity: 0.58;
+	cursor: wait;
+}
+
 .composer-actions {
 	display: flex;
 	align-items: center;

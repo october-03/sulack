@@ -135,6 +135,8 @@ function App() {
 	const [selectedDirectConversationId, setSelectedDirectConversationId] = useState<string | null>(null);
 	const [channelMessageDraft, setChannelMessageDraft] = useState('');
 	const [directConversationMessageDraft, setDirectConversationMessageDraft] = useState('');
+	const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+	const [editingMessageDraft, setEditingMessageDraft] = useState('');
 	const [messageComposerError, setMessageComposerError] = useState<string | null>(null);
 	const [messageComposerStatus, setMessageComposerStatus] = useState<string | null>(null);
 	const [channelMessages, setChannelMessages] = useState<MessageItem[]>([]);
@@ -147,6 +149,7 @@ function App() {
 	const [isChannelMembersLoading, setIsChannelMembersLoading] = useState(false);
 	const [isDirectConversationsLoading, setIsDirectConversationsLoading] = useState(false);
 	const [isMessageSending, setIsMessageSending] = useState(false);
+	const [isMessageMutating, setIsMessageMutating] = useState(false);
 	const [isChannelMessagesLoading, setIsChannelMessagesLoading] = useState(false);
 	const [isDirectConversationMessagesLoading, setIsDirectConversationMessagesLoading] = useState(false);
 	const selectedChannelIdRef = useRef<string | null>(null);
@@ -203,6 +206,8 @@ function App() {
 			setSelectedDirectConversationId(null);
 			setChannelMessageDraft('');
 			setDirectConversationMessageDraft('');
+			setEditingMessageId(null);
+			setEditingMessageDraft('');
 			setChannelMessages([]);
 			setDirectConversationMessages([]);
 			setChannelError(null);
@@ -218,6 +223,7 @@ function App() {
 			setIsChannelMessagesLoading(false);
 			setIsDirectConversationMessagesLoading(false);
 			setIsMessageSending(false);
+			setIsMessageMutating(false);
 			return;
 		}
 
@@ -511,6 +517,26 @@ function App() {
 					void loadChannelMessages({ silent: true });
 				}
 			)
+			.on(
+				'postgres_changes',
+				{
+					event: 'UPDATE',
+					schema: 'public',
+					table: 'messages',
+					filter: `channel_id=eq.${selectedChannelId}`
+				},
+				(payload) => {
+					console.info('[Realtime] channel message updated', {
+						channelId: selectedChannelId,
+						eventType: payload.eventType,
+						messageId: payload.new.id,
+						payloadChannelId: payload.new.channel_id,
+						deletedAt: payload.new.deleted_at,
+						payload
+					});
+					void loadChannelMessages({ silent: true });
+				}
+			)
 			.subscribe((status) => {
 				console.info('[Realtime] channel subscription status changed', {
 					channelId: selectedChannelId,
@@ -638,6 +664,26 @@ function App() {
 						eventType: payload.eventType,
 						messageId: payload.new.id,
 						payloadConversationId: payload.new.conversation_id,
+						payload
+					});
+					void loadDirectConversationMessages({ silent: true });
+				}
+			)
+			.on(
+				'postgres_changes',
+				{
+					event: 'UPDATE',
+					schema: 'public',
+					table: 'messages',
+					filter: `conversation_id=eq.${selectedDirectConversationId}`
+				},
+				(payload) => {
+					console.info('[Realtime] direct conversation message updated', {
+						conversationId: selectedDirectConversationId,
+						eventType: payload.eventType,
+						messageId: payload.new.id,
+						payloadConversationId: payload.new.conversation_id,
+						deletedAt: payload.new.deleted_at,
 						payload
 					});
 					void loadDirectConversationMessages({ silent: true });
@@ -779,6 +825,114 @@ function App() {
 		}
 	};
 
+	const applyMessageResponse = (message: MessageItem) => {
+		if (message.channelId) {
+			setChannelMessages((currentMessages) => upsertMessage(currentMessages, message));
+		}
+
+		if (message.conversationId) {
+			setDirectConversationMessages((currentMessages) => upsertMessage(currentMessages, message));
+		}
+	};
+
+	const handleStartEditMessage = (message: MessageItem) => {
+		setEditingMessageId(message.id);
+		setEditingMessageDraft(message.content);
+		setMessageComposerError(null);
+		setMessageComposerStatus(null);
+	};
+
+	const handleCancelEditMessage = () => {
+		setEditingMessageId(null);
+		setEditingMessageDraft('');
+	};
+
+	const handleUpdateMessage = async (event: FormEvent<HTMLFormElement>, message: MessageItem) => {
+		event.preventDefault();
+
+		if (!session) {
+			setMessageComposerError('로그인 후 메시지를 수정할 수 있습니다.');
+			return;
+		}
+
+		const content = editingMessageDraft.trim();
+
+		if (!content) {
+			setMessageComposerError('수정할 메시지 내용을 입력해주세요.');
+			return;
+		}
+
+		setIsMessageMutating(true);
+		setMessageComposerError(null);
+		setMessageComposerStatus(null);
+
+		try {
+			const response = await fetch(`${apiBaseUrl}/messages/${message.id}`, {
+				method: 'PATCH',
+				headers: {
+					Authorization: `Bearer ${session.access_token}`,
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					content
+				})
+			});
+
+			if (!response.ok) {
+				throw new Error(`메시지를 수정하지 못했습니다. (${response.status})`);
+			}
+
+			const data = (await response.json()) as MessageResponse;
+			applyMessageResponse(data.message);
+			setEditingMessageId(null);
+			setEditingMessageDraft('');
+			setMessageComposerStatus('메시지를 수정했습니다.');
+		} catch (error) {
+			setMessageComposerError(error instanceof Error ? error.message : '메시지를 수정하지 못했습니다.');
+		} finally {
+			setIsMessageMutating(false);
+		}
+	};
+
+	const handleDeleteMessage = async (message: MessageItem) => {
+		if (!session) {
+			setMessageComposerError('로그인 후 메시지를 삭제할 수 있습니다.');
+			return;
+		}
+
+		if (!window.confirm('이 메시지를 삭제할까요?')) {
+			return;
+		}
+
+		setIsMessageMutating(true);
+		setMessageComposerError(null);
+		setMessageComposerStatus(null);
+
+		try {
+			const response = await fetch(`${apiBaseUrl}/messages/${message.id}`, {
+				method: 'DELETE',
+				headers: {
+					Authorization: `Bearer ${session.access_token}`
+				}
+			});
+
+			if (!response.ok) {
+				throw new Error(`메시지를 삭제하지 못했습니다. (${response.status})`);
+			}
+
+			const data = (await response.json()) as MessageResponse;
+			applyMessageResponse(data.message);
+			setEditingMessageId((currentEditingMessageId) =>
+				currentEditingMessageId === message.id ? null : currentEditingMessageId
+			);
+			setMessageComposerStatus('메시지를 삭제했습니다.');
+		} catch (error) {
+			setMessageComposerError(error instanceof Error ? error.message : '메시지를 삭제하지 못했습니다.');
+		} finally {
+			setIsMessageMutating(false);
+		}
+	};
+
 	const userEmail = session?.user.email ?? 'unknown user';
 	const lastSeen = health?.timestamp ?? 'Start the API server to see live status.';
 	const selectedChannel = channels.find((channel) => channel.id === selectedChannelId) ?? null;
@@ -822,6 +976,8 @@ function App() {
 			<div className="message-list" role="list" aria-label={ariaLabel}>
 				{messages.map((message) => {
 					const isMine = message.author.id === session?.user.id;
+					const canMutate = isMine && !message.deletedAt;
+					const isEditing = editingMessageId === message.id;
 
 					return (
 						<article key={message.id} className={`message-row${isMine ? ' message-row-mine' : ''}`}>
@@ -833,7 +989,44 @@ function App() {
 									<strong>{message.author.displayName}</strong>
 									<span>{messageTimeFormatter.format(new Date(message.createdAt))}</span>
 								</div>
-								<p>{message.deletedAt ? '삭제된 메시지입니다.' : message.content}</p>
+								{isEditing ? (
+									<form className="message-edit-form" onSubmit={(event) => void handleUpdateMessage(event, message)}>
+										<textarea
+											value={editingMessageDraft}
+											onChange={(event) => setEditingMessageDraft(event.target.value)}
+											rows={3}
+											maxLength={4000}
+											disabled={isMessageMutating}
+										/>
+										<div className="message-actions">
+											<small>{editingMessageDraft.trim().length}/4000</small>
+											<div className="message-action-buttons">
+												<button type="submit" disabled={isMessageMutating || !editingMessageDraft.trim()}>
+													Save
+												</button>
+												<button type="button" onClick={handleCancelEditMessage} disabled={isMessageMutating}>
+													Cancel
+												</button>
+											</div>
+										</div>
+									</form>
+								) : (
+									<p>{message.deletedAt ? '삭제된 메시지입니다.' : message.content}</p>
+								)}
+								{canMutate && !isEditing ? (
+									<div className="message-actions">
+										<button type="button" onClick={() => handleStartEditMessage(message)} disabled={isMessageMutating}>
+											Edit
+										</button>
+										<button
+											type="button"
+											onClick={() => void handleDeleteMessage(message)}
+											disabled={isMessageMutating}
+										>
+											Delete
+										</button>
+									</div>
+								) : null}
 							</div>
 						</article>
 					);
