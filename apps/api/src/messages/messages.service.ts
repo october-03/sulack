@@ -1,9 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { type Prisma } from '../generated/prisma/client';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { MessageType, type Prisma } from '../generated/prisma/client';
 import type { SupabaseUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProfilesService } from '../profiles/profiles.service';
-import { type ListMessagesQueryDto, type MessageListItem } from './messages.dto';
+import { type CreateMessageDto, type ListMessagesQueryDto, type MessageListItem } from './messages.dto';
 
 const messageListInclude = {
 	author: {
@@ -43,6 +43,17 @@ export class MessagesService {
 		private readonly profilesService: ProfilesService
 	) {}
 
+	async createChannelMessage(
+		user: SupabaseUser,
+		channelId: string,
+		payload: CreateMessageDto
+	): Promise<MessageListItem> {
+		await this.profilesService.ensureMyProfile(user);
+		await this.ensureChannelMembership(user.id, channelId);
+
+		return this.createMessage(user.id, { channelId }, payload);
+	}
+
 	async listChannelMessages(
 		user: SupabaseUser,
 		channelId: string,
@@ -54,6 +65,17 @@ export class MessagesService {
 		return this.listMessages({ channelId }, query);
 	}
 
+	async createDirectConversationMessage(
+		user: SupabaseUser,
+		conversationId: string,
+		payload: CreateMessageDto
+	): Promise<MessageListItem> {
+		await this.profilesService.ensureMyProfile(user);
+		await this.ensureDirectConversationMembership(user.id, conversationId);
+
+		return this.createMessage(user.id, { conversationId }, payload);
+	}
+
 	async listDirectConversationMessages(
 		user: SupabaseUser,
 		conversationId: string,
@@ -63,6 +85,28 @@ export class MessagesService {
 		await this.ensureDirectConversationMembership(user.id, conversationId);
 
 		return this.listMessages({ conversationId }, query);
+	}
+
+	private async createMessage(
+		authorId: string,
+		target: Pick<Prisma.MessageUncheckedCreateInput, 'channelId' | 'conversationId'>,
+		payload: CreateMessageDto
+	): Promise<MessageListItem> {
+		const content = payload.content.trim();
+
+		if (!content) {
+			throw new BadRequestException('Message content cannot be blank.');
+		}
+
+		return this.prismaService.message.create({
+			data: {
+				...target,
+				authorId,
+				content,
+				messageType: MessageType.text
+			},
+			include: messageListInclude
+		});
 	}
 
 	private async listMessages(

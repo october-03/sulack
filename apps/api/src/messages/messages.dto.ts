@@ -1,7 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Expose, plainToInstance, Type } from 'class-transformer';
-import { IsDateString, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsDateString, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { MessageType, type Prisma } from '../generated/prisma/client';
+
+export class CreateMessageDto {
+	@ApiProperty({
+		example: '이번 릴리즈 범위를 공유합니다.'
+	})
+	@IsString()
+	@IsNotEmpty()
+	@MaxLength(4000)
+	content!: string;
+}
 
 export class ListMessagesQueryDto {
 	@ApiPropertyOptional({
@@ -251,6 +261,26 @@ export class MessageListResponseDto {
 				messages: messages.map((message) => MessageDto.from(message)),
 				hasMore,
 				nextBefore: messages[0]?.createdAt.toISOString() ?? null
+			},
+			{
+				excludeExtraneousValues: true
+			}
+		);
+	}
+}
+
+export class MessageResponseDto {
+	@ApiProperty({
+		type: MessageDto
+	})
+	@Expose()
+	message!: MessageDto;
+
+	static from(message: MessageListItem) {
+		return plainToInstance(
+			MessageResponseDto,
+			{
+				message: MessageDto.from(message)
 			},
 			{
 				excludeExtraneousValues: true
