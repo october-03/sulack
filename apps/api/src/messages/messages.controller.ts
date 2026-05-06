@@ -19,7 +19,7 @@ import { MessagesService } from './messages.service';
 	description: 'Missing, malformed, invalid, or expired bearer token.'
 })
 @ApiNotFoundResponse({
-	description: 'Channel was not found or the authenticated user is not a member.'
+	description: 'Conversation was not found or the authenticated user is not a participant.'
 })
 @Controller()
 @UseGuards(AuthGuard)
@@ -35,6 +35,18 @@ export class MessagesController {
 		@Query() query: ListMessagesQueryDto
 	) {
 		const result = await this.messagesService.listChannelMessages(authUser.user, channelId, query);
+		return MessageListResponseDto.from(result.messages, result.hasMore);
+	}
+
+	@Get('direct-conversations/:conversationId/messages')
+	@ApiOperation({ summary: 'List messages in a direct conversation for the current authenticated participant' })
+	@ApiOkResponse({ type: MessageListResponseDto })
+	async listDirectConversationMessages(
+		@CurrentUser() authUser: AuthenticatedRequestUser,
+		@Param('conversationId', new ParseUUIDPipe()) conversationId: string,
+		@Query() query: ListMessagesQueryDto
+	) {
+		const result = await this.messagesService.listDirectConversationMessages(authUser.user, conversationId, query);
 		return MessageListResponseDto.from(result.messages, result.hasMore);
 	}
 }

@@ -51,10 +51,28 @@ export class MessagesService {
 		await this.profilesService.ensureMyProfile(user);
 		await this.ensureChannelMembership(user.id, channelId);
 
+		return this.listMessages({ channelId }, query);
+	}
+
+	async listDirectConversationMessages(
+		user: SupabaseUser,
+		conversationId: string,
+		query: ListMessagesQueryDto
+	): Promise<MessageListResult> {
+		await this.profilesService.ensureMyProfile(user);
+		await this.ensureDirectConversationMembership(user.id, conversationId);
+
+		return this.listMessages({ conversationId }, query);
+	}
+
+	private async listMessages(
+		target: Pick<Prisma.MessageWhereInput, 'channelId' | 'conversationId'>,
+		query: ListMessagesQueryDto
+	): Promise<MessageListResult> {
 		const limit = query.limit ?? 50;
 		const messages = await this.prismaService.message.findMany({
 			where: {
-				channelId,
+				...target,
 				createdAt: query.before
 					? {
 							lt: new Date(query.before)
@@ -99,6 +117,26 @@ export class MessagesService {
 
 		if (!channel) {
 			throw new NotFoundException('Channel not found or inaccessible.');
+		}
+	}
+
+	private async ensureDirectConversationMembership(userId: string, conversationId: string) {
+		const conversation = await this.prismaService.directConversation.findFirst({
+			where: {
+				id: conversationId,
+				members: {
+					some: {
+						userId
+					}
+				}
+			},
+			select: {
+				id: true
+			}
+		});
+
+		if (!conversation) {
+			throw new NotFoundException('Direct conversation not found or inaccessible.');
 		}
 	}
 }
