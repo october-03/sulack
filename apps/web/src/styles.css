@@ -28,7 +28,8 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
 	font: inherit;
 }
 
@@ -269,6 +270,7 @@ input {
 
 .spotlight-stat,
 .members-panel,
+.message-composer-panel,
 .auth-card,
 .status-card {
 	display: grid;
@@ -296,6 +298,11 @@ input {
 
 .members-panel {
 	gap: 18px;
+}
+
+.message-composer-panel {
+	gap: 18px;
+	background: linear-gradient(135deg, rgba(255, 177, 92, 0.13) 0%, rgba(31, 93, 214, 0.11) 100%);
 }
 
 .members-panel-heading {
@@ -418,7 +425,8 @@ input {
 	gap: 8px;
 }
 
-.field input {
+.field input,
+.field textarea {
 	width: 100%;
 	padding: 14px 16px;
 	border: 1px solid rgba(255, 255, 255, 0.12);
@@ -426,20 +434,44 @@ input {
 	color: #f5f7ff;
 	background: rgba(7, 17, 31, 0.58);
 	outline: none;
+	resize: vertical;
 	transition:
 		border-color 160ms ease,
 		transform 160ms ease,
 		background 160ms ease;
 }
 
-.field input::placeholder {
+.field input::placeholder,
+.field textarea::placeholder {
 	color: rgba(245, 247, 255, 0.42);
 }
 
-.field input:focus {
+.field input:focus,
+.field textarea:focus {
 	border-color: rgba(255, 177, 92, 0.95);
 	background: rgba(7, 17, 31, 0.78);
 	transform: translateY(-1px);
+}
+
+.field textarea:disabled {
+	opacity: 0.64;
+	cursor: not-allowed;
+}
+
+.message-composer-form {
+	display: grid;
+	gap: 12px;
+}
+
+.composer-actions {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.composer-actions small {
+	color: rgba(245, 247, 255, 0.58);
 }
 
 .primary-button {

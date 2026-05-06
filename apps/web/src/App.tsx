@@ -64,6 +64,8 @@ const dmDateFormatter = new Intl.DateTimeFormat('ko-KR', {
 	day: 'numeric'
 });
 
+type MessageTarget = 'channel' | 'directConversation';
+
 function App() {
 	const [health, setHealth] = useState<HealthResponse | null>(null);
 	const [session, setSession] = useState<Session | null>(null);
@@ -78,11 +80,16 @@ function App() {
 	const [directConversationError, setDirectConversationError] = useState<string | null>(null);
 	const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
 	const [selectedDirectConversationId, setSelectedDirectConversationId] = useState<string | null>(null);
+	const [channelMessageDraft, setChannelMessageDraft] = useState('');
+	const [directConversationMessageDraft, setDirectConversationMessageDraft] = useState('');
+	const [messageComposerError, setMessageComposerError] = useState<string | null>(null);
+	const [messageComposerStatus, setMessageComposerStatus] = useState<string | null>(null);
 	const [isAuthLoading, setIsAuthLoading] = useState(false);
 	const [isSessionLoading, setIsSessionLoading] = useState(true);
 	const [isChannelsLoading, setIsChannelsLoading] = useState(false);
 	const [isChannelMembersLoading, setIsChannelMembersLoading] = useState(false);
 	const [isDirectConversationsLoading, setIsDirectConversationsLoading] = useState(false);
+	const [isMessageSending, setIsMessageSending] = useState(false);
 
 	useEffect(() => {
 		void fetch(`${apiBaseUrl}/health`)
@@ -125,12 +132,17 @@ function App() {
 			setDirectConversations([]);
 			setSelectedChannelId(null);
 			setSelectedDirectConversationId(null);
+			setChannelMessageDraft('');
+			setDirectConversationMessageDraft('');
 			setChannelError(null);
 			setChannelMembersError(null);
 			setDirectConversationError(null);
+			setMessageComposerError(null);
+			setMessageComposerStatus(null);
 			setIsChannelsLoading(false);
 			setIsChannelMembersLoading(false);
 			setIsDirectConversationsLoading(false);
+			setIsMessageSending(false);
 			return;
 		}
 
@@ -337,6 +349,66 @@ function App() {
 		setIsAuthLoading(false);
 	};
 
+	const handleSendMessage = async (event: FormEvent<HTMLFormElement>, target: MessageTarget) => {
+		event.preventDefault();
+
+		if (!session) {
+			setMessageComposerError('로그인 후 메시지를 보낼 수 있습니다.');
+			return;
+		}
+
+		const isChannelTarget = target === 'channel';
+		const targetId = isChannelTarget ? selectedChannelId : selectedDirectConversationId;
+		const content = isChannelTarget ? channelMessageDraft.trim() : directConversationMessageDraft.trim();
+
+		if (!targetId) {
+			setMessageComposerError(isChannelTarget ? '메시지를 보낼 채널을 선택해주세요.' : '메시지를 보낼 DM을 선택해주세요.');
+			return;
+		}
+
+		if (!content) {
+			setMessageComposerError('메시지 내용을 입력해주세요.');
+			return;
+		}
+
+		setIsMessageSending(true);
+		setMessageComposerError(null);
+		setMessageComposerStatus(null);
+
+		const endpoint = isChannelTarget
+			? `${apiBaseUrl}/channels/${targetId}/messages`
+			: `${apiBaseUrl}/direct-conversations/${targetId}/messages`;
+
+		try {
+			const response = await fetch(endpoint, {
+				method: 'POST',
+				headers: {
+					Authorization: `Bearer ${session.access_token}`,
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					content
+				})
+			});
+
+			if (!response.ok) {
+				throw new Error(`메시지를 보내지 못했습니다. (${response.status})`);
+			}
+
+			if (isChannelTarget) {
+				setChannelMessageDraft('');
+				setMessageComposerStatus('채널 메시지를 보냈습니다.');
+			} else {
+				setDirectConversationMessageDraft('');
+				setMessageComposerStatus('DM 메시지를 보냈습니다.');
+			}
+		} catch (error) {
+			setMessageComposerError(error instanceof Error ? error.message : '메시지를 보내지 못했습니다.');
+		} finally {
+			setIsMessageSending(false);
+		}
+	};
+
 	const userEmail = session?.user.email ?? 'unknown user';
 	const lastSeen = health?.timestamp ?? 'Start the API server to see live status.';
 	const selectedChannel = channels.find((channel) => channel.id === selectedChannelId) ?? null;
@@ -497,6 +569,45 @@ function App() {
 						</div>
 					) : null}
 
+					<section className="message-composer-panel">
+						<div className="members-panel-heading">
+							<div>
+								<span className="card-kicker">Message Composer</span>
+								<h3>{selectedChannel ? `# ${selectedChannel.name}` : 'Select a channel'}</h3>
+							</div>
+							{selectedChannel ? <span className="channel-pill">Channel</span> : null}
+						</div>
+
+						<form className="message-composer-form" onSubmit={(event) => void handleSendMessage(event, 'channel')}>
+							<label className="field">
+								<span>Message</span>
+								<textarea
+									value={channelMessageDraft}
+									onChange={(event) => setChannelMessageDraft(event.target.value)}
+									placeholder={
+										selectedChannel ? `${selectedChannel.name}에 메시지 보내기` : '좌측에서 채널을 선택하세요'
+									}
+									rows={4}
+									maxLength={4000}
+									disabled={!session || !selectedChannel || isMessageSending}
+								/>
+							</label>
+							<div className="composer-actions">
+								<small>{channelMessageDraft.trim().length}/4000</small>
+								<button
+									className="primary-button"
+									type="submit"
+									disabled={!session || !selectedChannel || isMessageSending || !channelMessageDraft.trim()}
+								>
+									{isMessageSending ? 'Sending...' : 'Send'}
+								</button>
+							</div>
+						</form>
+
+						{messageComposerStatus ? <p className="helper-text">{messageComposerStatus}</p> : null}
+						{messageComposerError ? <p className="error-message">{messageComposerError}</p> : null}
+					</section>
+
 					<section className="members-panel">
 						<div className="members-panel-heading">
 							<div>
@@ -587,6 +698,42 @@ function App() {
 								</div>
 							</article>
 						) : null}
+
+						<form
+							className="message-composer-form"
+							onSubmit={(event) => void handleSendMessage(event, 'directConversation')}
+						>
+							<label className="field">
+								<span>Message</span>
+								<textarea
+									value={directConversationMessageDraft}
+									onChange={(event) => setDirectConversationMessageDraft(event.target.value)}
+									placeholder={
+										selectedDirectConversationCounterpart
+											? `${selectedDirectConversationCounterpart.displayName}에게 메시지 보내기`
+											: '좌측에서 DM을 선택하세요'
+									}
+									rows={4}
+									maxLength={4000}
+									disabled={!session || !selectedDirectConversation || isMessageSending}
+								/>
+							</label>
+							<div className="composer-actions">
+								<small>{directConversationMessageDraft.trim().length}/4000</small>
+								<button
+									className="primary-button secondary-tone"
+									type="submit"
+									disabled={
+										!session ||
+										!selectedDirectConversation ||
+										isMessageSending ||
+										!directConversationMessageDraft.trim()
+									}
+								>
+									{isMessageSending ? 'Sending...' : 'Send DM'}
+								</button>
+							</div>
+						</form>
 					</section>
 
 					<div className="panel-grid">
