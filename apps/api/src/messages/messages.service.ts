@@ -48,31 +48,24 @@ export class MessagesService {
 		private readonly profilesService: ProfilesService
 	) {}
 
-	async updateMessage(user: SupabaseUser, messageId: string, payload: UpdateMessageDto): Promise<MessageListItem> {
+	async deleteMessage(user: SupabaseUser, messageId: string): Promise<MessageListItem> {
 		await this.profilesService.ensureMyProfile(user);
+		await this.ensureMessageAuthorCanMutate(user.id, messageId, 'delete');
 
-		const message = await this.prismaService.message.findUnique({
+		return this.prismaService.message.update({
 			where: {
 				id: messageId
 			},
-			select: {
-				id: true,
-				authorId: true,
-				deletedAt: true
-			}
+			data: {
+				deletedAt: new Date()
+			},
+			include: messageListInclude
 		});
+	}
 
-		if (!message) {
-			throw new NotFoundException('Message not found.');
-		}
-
-		if (message.authorId !== user.id) {
-			throw new ForbiddenException('Only the message author can update the message.');
-		}
-
-		if (message.deletedAt) {
-			throw new BadRequestException('Deleted messages cannot be edited.');
-		}
+	async updateMessage(user: SupabaseUser, messageId: string, payload: UpdateMessageDto): Promise<MessageListItem> {
+		await this.profilesService.ensureMyProfile(user);
+		await this.ensureMessageAuthorCanMutate(user.id, messageId, 'update');
 
 		const content = this.normalizeContent(payload.content);
 
@@ -157,6 +150,31 @@ export class MessagesService {
 		}
 
 		return normalizedContent;
+	}
+
+	private async ensureMessageAuthorCanMutate(authorId: string, messageId: string, action: 'delete' | 'update') {
+		const message = await this.prismaService.message.findUnique({
+			where: {
+				id: messageId
+			},
+			select: {
+				id: true,
+				authorId: true,
+				deletedAt: true
+			}
+		});
+
+		if (!message) {
+			throw new NotFoundException('Message not found.');
+		}
+
+		if (message.authorId !== authorId) {
+			throw new ForbiddenException(`Only the message author can ${action} the message.`);
+		}
+
+		if (message.deletedAt) {
+			throw new BadRequestException(`Deleted messages cannot be ${action === 'update' ? 'edited' : 'deleted again'}.`);
+		}
 	}
 
 	private async listMessages(

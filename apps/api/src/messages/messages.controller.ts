@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import {
 	ApiBearerAuth,
 	ApiBadRequestResponse,
@@ -34,6 +34,23 @@ import { MessagesService } from './messages.service';
 @UseGuards(AuthGuard)
 export class MessagesController {
 	constructor(private readonly messagesService: MessagesService) {}
+
+	@Delete('messages/:messageId')
+	@ApiOperation({ summary: 'Delete a message authored by the current authenticated user' })
+	@ApiOkResponse({ type: MessageResponseDto })
+	@ApiBadRequestResponse({
+		description: 'Deleted messages cannot be deleted again.'
+	})
+	@ApiForbiddenResponse({
+		description: 'Only the message author can delete the message.'
+	})
+	async deleteMessage(
+		@CurrentUser() authUser: AuthenticatedRequestUser,
+		@Param('messageId', new ParseUUIDPipe()) messageId: string
+	) {
+		const message = await this.messagesService.deleteMessage(authUser.user, messageId);
+		return MessageResponseDto.from(message);
+	}
 
 	@Patch('messages/:messageId')
 	@ApiOperation({ summary: 'Update a text message authored by the current authenticated user' })
