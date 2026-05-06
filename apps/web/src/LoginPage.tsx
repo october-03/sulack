@@ -1,5 +1,4 @@
 import { FormEvent, useEffect, useState } from 'react';
-import type { Session } from '@supabase/supabase-js';
 import { AlertCircle, LockKeyhole, Mail } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -7,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { supabase } from './lib/supabase';
+import { useAuthSession } from '@/hooks/use-auth-session';
 
 type LoginLocationState = {
 	from?: string;
@@ -18,39 +17,9 @@ function LoginPage() {
 	const location = useLocation();
 	const locationState = location.state as LoginLocationState | null;
 	const redirectTo = locationState?.from ?? '/';
-	const [session, setSession] = useState<Session | null>(null);
 	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
-	const [authError, setAuthError] = useState<string | null>(null);
-	const [isAuthLoading, setIsAuthLoading] = useState(false);
-	const [isSessionLoading, setIsSessionLoading] = useState(true);
-
-	useEffect(() => {
-		let isMounted = true;
-
-		void supabase.auth.getSession().then(({ data, error }) => {
-			if (!isMounted) {
-				return;
-			}
-
-			setSession(data.session);
-			setAuthError(error?.message ?? null);
-			setIsSessionLoading(false);
-		});
-
-		const {
-			data: { subscription }
-		} = supabase.auth.onAuthStateChange((_event, nextSession) => {
-			setSession(nextSession);
-			setAuthError(null);
-			setIsSessionLoading(false);
-		});
-
-		return () => {
-			isMounted = false;
-			subscription.unsubscribe();
-		};
-	}, []);
+	const { authError, isAuthLoading, isSessionLoading, login, session } = useAuthSession();
 
 	useEffect(() => {
 		if (!isSessionLoading && session) {
@@ -60,23 +29,11 @@ function LoginPage() {
 
 	const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
-		setIsAuthLoading(true);
-		setAuthError(null);
 
-		const { error } = await supabase.auth.signInWithPassword({
-			email,
-			password
-		});
-
-		if (error) {
-			setAuthError(error.message);
-			setIsAuthLoading(false);
-			return;
+		if (await login(email, password)) {
+			setPassword('');
+			navigate(redirectTo, { replace: true });
 		}
-
-		setPassword('');
-		navigate(redirectTo, { replace: true });
-		setIsAuthLoading(false);
 	};
 
 	return (
