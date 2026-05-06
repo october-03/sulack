@@ -150,10 +150,15 @@ function App() {
 	const [isChannelMessagesLoading, setIsChannelMessagesLoading] = useState(false);
 	const [isDirectConversationMessagesLoading, setIsDirectConversationMessagesLoading] = useState(false);
 	const selectedChannelIdRef = useRef<string | null>(null);
+	const selectedDirectConversationIdRef = useRef<string | null>(null);
 
 	useEffect(() => {
 		selectedChannelIdRef.current = selectedChannelId;
 	}, [selectedChannelId]);
+
+	useEffect(() => {
+		selectedDirectConversationIdRef.current = selectedDirectConversationId;
+	}, [selectedDirectConversationId]);
 
 	useEffect(() => {
 		void fetch(`${apiBaseUrl}/health`)
@@ -534,27 +539,30 @@ function App() {
 		};
 	}, [loadChannelMessages, selectedChannelId, session]);
 
-	useEffect(() => {
-		if (!session || !selectedDirectConversationId) {
-			setDirectConversationMessages([]);
-			setDirectConversationMessagesError(null);
-			setIsDirectConversationMessagesLoading(false);
-			return;
-		}
+	const loadDirectConversationMessages = useCallback(
+		async (options?: { signal?: AbortSignal; silent?: boolean }) => {
+			if (!session || !selectedDirectConversationId) {
+				setDirectConversationMessages([]);
+				setDirectConversationMessagesError(null);
+				setIsDirectConversationMessagesLoading(false);
+				return;
+			}
 
-		let isCancelled = false;
+			const requestedDirectConversationId = selectedDirectConversationId;
 
-		const loadDirectConversationMessages = async () => {
-			setIsDirectConversationMessagesLoading(true);
+			if (!options?.silent) {
+				setIsDirectConversationMessagesLoading(true);
+			}
 			setDirectConversationMessagesError(null);
 
 			try {
 				const response = await fetch(
-					`${apiBaseUrl}/direct-conversations/${selectedDirectConversationId}/messages?limit=50`,
+					`${apiBaseUrl}/direct-conversations/${requestedDirectConversationId}/messages?limit=50`,
 					{
 						headers: {
 							Authorization: `Bearer ${session.access_token}`
-						}
+						},
+						signal: options?.signal
 					}
 				);
 
@@ -564,31 +572,104 @@ function App() {
 
 				const data = (await response.json()) as MessageListResponse;
 
-				if (isCancelled) {
+				if (selectedDirectConversationIdRef.current !== requestedDirectConversationId) {
 					return;
 				}
 
 				setDirectConversationMessages(data.messages);
 			} catch (error) {
-				if (isCancelled) {
+				if (error instanceof DOMException && error.name === 'AbortError') {
 					return;
 				}
 
-				setDirectConversationMessages([]);
+				if (!options?.silent) {
+					setDirectConversationMessages([]);
+				}
 				setDirectConversationMessagesError(error instanceof Error ? error.message : 'DM 메시지를 불러오지 못했습니다.');
 			} finally {
-				if (!isCancelled) {
+				if (!options?.silent) {
 					setIsDirectConversationMessagesLoading(false);
 				}
 			}
-		};
+		},
+		[selectedDirectConversationId, session]
+	);
 
-		void loadDirectConversationMessages();
+	useEffect(() => {
+		const abortController = new AbortController();
+
+		void loadDirectConversationMessages({ signal: abortController.signal });
 
 		return () => {
-			isCancelled = true;
+			abortController.abort();
 		};
-	}, [selectedDirectConversationId, session]);
+	}, [loadDirectConversationMessages]);
+
+	useEffect(() => {
+		if (!session || !selectedDirectConversationId) {
+			return;
+		}
+
+		console.info('[Realtime] direct conversation subscription target changed', {
+			conversationId: selectedDirectConversationId,
+			userId: session.user.id,
+			hasAccessToken: Boolean(session.access_token)
+		});
+
+		supabase.realtime.setAuth(session.access_token);
+		console.info('[Realtime] access token applied to direct conversation realtime client', {
+			conversationId: selectedDirectConversationId,
+			userId: session.user.id
+		});
+
+		const realtimeChannel = supabase
+			.channel(`messages:conversation:${selectedDirectConversationId}`)
+			.on(
+				'postgres_changes',
+				{
+					event: 'INSERT',
+					schema: 'public',
+					table: 'messages',
+					filter: `conversation_id=eq.${selectedDirectConversationId}`
+				},
+				(payload) => {
+					console.info('[Realtime] direct conversation message received', {
+						conversationId: selectedDirectConversationId,
+						eventType: payload.eventType,
+						messageId: payload.new.id,
+						payloadConversationId: payload.new.conversation_id,
+						payload
+					});
+					void loadDirectConversationMessages({ silent: true });
+				}
+			)
+			.subscribe((status) => {
+				console.info('[Realtime] direct conversation subscription status changed', {
+					conversationId: selectedDirectConversationId,
+					status,
+					userId: session.user.id,
+					hasAccessToken: Boolean(session.access_token)
+				});
+
+				if (status === 'SUBSCRIBED') {
+					console.info('[Realtime] direct conversation subscription ready', {
+						conversationId: selectedDirectConversationId,
+						userId: session.user.id
+					});
+				}
+
+				if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+					setDirectConversationMessagesError('DM 메시지 실시간 구독이 끊겼습니다. 잠시 후 다시 시도해주세요.');
+				}
+			});
+
+		return () => {
+			console.info('[Realtime] direct conversation subscription removed', {
+				conversationId: selectedDirectConversationId
+			});
+			void supabase.removeChannel(realtimeChannel);
+		};
+	}, [loadDirectConversationMessages, selectedDirectConversationId, session]);
 
 	const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
@@ -635,7 +716,9 @@ function App() {
 		const content = isChannelTarget ? channelMessageDraft.trim() : directConversationMessageDraft.trim();
 
 		if (!targetId) {
-			setMessageComposerError(isChannelTarget ? '메시지를 보낼 채널을 선택해주세요.' : '메시지를 보낼 DM을 선택해주세요.');
+			setMessageComposerError(
+				isChannelTarget ? '메시지를 보낼 채널을 선택해주세요.' : '메시지를 보낼 DM을 선택해주세요.'
+			);
 			return;
 		}
 
@@ -680,6 +763,11 @@ function App() {
 				setChannelMessages((currentMessages) => upsertMessage(currentMessages, data.message));
 				setMessageComposerStatus('채널 메시지를 보냈습니다.');
 			} else {
+				console.info('[Messages] direct conversation message sent', {
+					selectedDirectConversationId,
+					responseConversationId: data.message.conversationId,
+					messageId: data.message.id
+				});
 				setDirectConversationMessageDraft('');
 				setDirectConversationMessages((currentMessages) => upsertMessage(currentMessages, data.message));
 				setMessageComposerStatus('DM 메시지를 보냈습니다.');

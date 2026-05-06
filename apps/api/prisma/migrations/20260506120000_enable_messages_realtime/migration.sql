@@ -22,14 +22,35 @@ BEGIN
         GRANT SELECT ON public.channel_members TO authenticated;
         GRANT SELECT ON public.direct_conversation_members TO authenticated;
 
+        ALTER TABLE public.channel_members ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.direct_conversation_members ENABLE ROW LEVEL SECURITY;
         ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 
+        DROP POLICY IF EXISTS "users can read their channel memberships" ON public.channel_members;
+        DROP POLICY IF EXISTS "users can read their direct conversation memberships" ON public.direct_conversation_members;
         DROP POLICY IF EXISTS "members can read channel messages" ON public.messages;
         DROP POLICY IF EXISTS "participants can read direct messages" ON public.messages;
+
+        CREATE POLICY "users can read their channel memberships"
+        ON public.channel_members
+        FOR SELECT
+        TO authenticated
+        USING (
+            user_id = auth.uid()
+        );
+
+        CREATE POLICY "users can read their direct conversation memberships"
+        ON public.direct_conversation_members
+        FOR SELECT
+        TO authenticated
+        USING (
+            user_id = auth.uid()
+        );
 
         CREATE POLICY "members can read channel messages"
         ON public.messages
         FOR SELECT
+        TO authenticated
         USING (
             channel_id IS NOT NULL
             AND EXISTS (
@@ -43,6 +64,7 @@ BEGIN
         CREATE POLICY "participants can read direct messages"
         ON public.messages
         FOR SELECT
+        TO authenticated
         USING (
             conversation_id IS NOT NULL
             AND EXISTS (

@@ -42,28 +42,28 @@
 
 ```ts
 const channel = supabase
-  .channel(`messages:channel:${channelId}`)
-  .on(
-    'postgres_changes',
-    {
-      event: 'INSERT',
-      schema: 'public',
-      table: 'messages',
-      filter: `channel_id=eq.${channelId}`,
-    },
-    handleMessageInserted,
-  )
-  .on(
-    'postgres_changes',
-    {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'messages',
-      filter: `channel_id=eq.${channelId}`,
-    },
-    handleMessageUpdated,
-  )
-  .subscribe();
+	.channel(`messages:channel:${channelId}`)
+	.on(
+		'postgres_changes',
+		{
+			event: 'INSERT',
+			schema: 'public',
+			table: 'messages',
+			filter: `channel_id=eq.${channelId}`
+		},
+		handleMessageInserted
+	)
+	.on(
+		'postgres_changes',
+		{
+			event: 'UPDATE',
+			schema: 'public',
+			table: 'messages',
+			filter: `channel_id=eq.${channelId}`
+		},
+		handleMessageUpdated
+	)
+	.subscribe();
 ```
 
 ### DM 메시지
@@ -74,28 +74,28 @@ const channel = supabase
 
 ```ts
 const channel = supabase
-  .channel(`messages:conversation:${conversationId}`)
-  .on(
-    'postgres_changes',
-    {
-      event: 'INSERT',
-      schema: 'public',
-      table: 'messages',
-      filter: `conversation_id=eq.${conversationId}`,
-    },
-    handleMessageInserted,
-  )
-  .on(
-    'postgres_changes',
-    {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'messages',
-      filter: `conversation_id=eq.${conversationId}`,
-    },
-    handleMessageUpdated,
-  )
-  .subscribe();
+	.channel(`messages:conversation:${conversationId}`)
+	.on(
+		'postgres_changes',
+		{
+			event: 'INSERT',
+			schema: 'public',
+			table: 'messages',
+			filter: `conversation_id=eq.${conversationId}`
+		},
+		handleMessageInserted
+	)
+	.on(
+		'postgres_changes',
+		{
+			event: 'UPDATE',
+			schema: 'public',
+			table: 'messages',
+			filter: `conversation_id=eq.${conversationId}`
+		},
+		handleMessageUpdated
+	)
+	.subscribe();
 ```
 
 ### 대화방 전환
@@ -155,16 +155,16 @@ const channel = supabase
 
 ```ts
 function upsertMessage(messages: MessageItem[], incoming: MessageItem) {
-  const next = new Map(messages.map((message) => [message.id, message]));
-  next.set(incoming.id, {
-    ...next.get(incoming.id),
-    ...incoming,
-  });
+	const next = new Map(messages.map((message) => [message.id, message]));
+	next.set(incoming.id, {
+		...next.get(incoming.id),
+		...incoming
+	});
 
-  return [...next.values()].sort((a, b) => {
-    const createdAtDiff = a.createdAt.localeCompare(b.createdAt);
-    return createdAtDiff === 0 ? a.id.localeCompare(b.id) : createdAtDiff;
-  });
+	return [...next.values()].sort((a, b) => {
+		const createdAtDiff = a.createdAt.localeCompare(b.createdAt);
+		return createdAtDiff === 0 ? a.id.localeCompare(b.id) : createdAtDiff;
+	});
 }
 ```
 
