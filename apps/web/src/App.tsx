@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 
@@ -106,6 +106,19 @@ const messageTimeFormatter = new Intl.DateTimeFormat('ko-KR', {
 
 type MessageTarget = 'channel' | 'directConversation';
 
+function upsertMessage(messages: MessageItem[], incomingMessage: MessageItem) {
+	const nextMessages = new Map(messages.map((message) => [message.id, message]));
+	nextMessages.set(incomingMessage.id, {
+		...nextMessages.get(incomingMessage.id),
+		...incomingMessage
+	});
+
+	return [...nextMessages.values()].sort((firstMessage, secondMessage) => {
+		const createdAtDiff = firstMessage.createdAt.localeCompare(secondMessage.createdAt);
+		return createdAtDiff === 0 ? firstMessage.id.localeCompare(secondMessage.id) : createdAtDiff;
+	});
+}
+
 function App() {
 	const [health, setHealth] = useState<HealthResponse | null>(null);
 	const [session, setSession] = useState<Session | null>(null);
@@ -136,6 +149,11 @@ function App() {
 	const [isMessageSending, setIsMessageSending] = useState(false);
 	const [isChannelMessagesLoading, setIsChannelMessagesLoading] = useState(false);
 	const [isDirectConversationMessagesLoading, setIsDirectConversationMessagesLoading] = useState(false);
+	const selectedChannelIdRef = useRef<string | null>(null);
+
+	useEffect(() => {
+		selectedChannelIdRef.current = selectedChannelId;
+	}, [selectedChannelId]);
 
 	useEffect(() => {
 		void fetch(`${apiBaseUrl}/health`)
@@ -369,25 +387,28 @@ function App() {
 		};
 	}, [selectedChannelId, session]);
 
-	useEffect(() => {
-		if (!session || !selectedChannelId) {
-			setChannelMessages([]);
-			setChannelMessagesError(null);
-			setIsChannelMessagesLoading(false);
-			return;
-		}
+	const loadChannelMessages = useCallback(
+		async (options?: { signal?: AbortSignal; silent?: boolean }) => {
+			if (!session || !selectedChannelId) {
+				setChannelMessages([]);
+				setChannelMessagesError(null);
+				setIsChannelMessagesLoading(false);
+				return;
+			}
 
-		let isCancelled = false;
+			const requestedChannelId = selectedChannelId;
 
-		const loadChannelMessages = async () => {
-			setIsChannelMessagesLoading(true);
+			if (!options?.silent) {
+				setIsChannelMessagesLoading(true);
+			}
 			setChannelMessagesError(null);
 
 			try {
-				const response = await fetch(`${apiBaseUrl}/channels/${selectedChannelId}/messages?limit=50`, {
+				const response = await fetch(`${apiBaseUrl}/channels/${requestedChannelId}/messages?limit=50`, {
 					headers: {
 						Authorization: `Bearer ${session.access_token}`
-					}
+					},
+					signal: options?.signal
 				});
 
 				if (!response.ok) {
@@ -396,31 +417,122 @@ function App() {
 
 				const data = (await response.json()) as MessageListResponse;
 
-				if (isCancelled) {
+				if (selectedChannelIdRef.current !== requestedChannelId) {
 					return;
 				}
 
 				setChannelMessages(data.messages);
 			} catch (error) {
-				if (isCancelled) {
+				if (error instanceof DOMException && error.name === 'AbortError') {
 					return;
 				}
 
-				setChannelMessages([]);
+				if (!options?.silent) {
+					setChannelMessages([]);
+				}
 				setChannelMessagesError(error instanceof Error ? error.message : '채널 메시지를 불러오지 못했습니다.');
 			} finally {
-				if (!isCancelled) {
+				if (!options?.silent) {
 					setIsChannelMessagesLoading(false);
 				}
 			}
-		};
+		},
+		[selectedChannelId, session]
+	);
 
-		void loadChannelMessages();
+	useEffect(() => {
+		const abortController = new AbortController();
+
+		void loadChannelMessages({ signal: abortController.signal });
 
 		return () => {
-			isCancelled = true;
+			abortController.abort();
 		};
-	}, [selectedChannelId, session]);
+	}, [loadChannelMessages]);
+
+	useEffect(() => {
+		if (!session || !selectedChannelId) {
+			return;
+		}
+
+		console.info('[Realtime] channel subscription target changed', {
+			channelId: selectedChannelId,
+			userId: session.user.id,
+			hasAccessToken: Boolean(session.access_token)
+		});
+
+		supabase.realtime.setAuth(session.access_token);
+		console.info('[Realtime] access token applied to realtime client', {
+			channelId: selectedChannelId,
+			userId: session.user.id
+		});
+
+		const realtimeChannel = supabase
+			.channel(`messages:channel:${selectedChannelId}`)
+			.on(
+				'postgres_changes',
+				{
+					event: 'INSERT',
+					schema: 'public',
+					table: 'messages'
+				},
+				(payload) => {
+					console.info('[Realtime] unfiltered message insert received', {
+						selectedChannelId,
+						eventType: payload.eventType,
+						messageId: payload.new.id,
+						channelId: payload.new.channel_id,
+						conversationId: payload.new.conversation_id,
+						payload
+					});
+				}
+			)
+			.on(
+				'postgres_changes',
+				{
+					event: 'INSERT',
+					schema: 'public',
+					table: 'messages',
+					filter: `channel_id=eq.${selectedChannelId}`
+				},
+				(payload) => {
+					console.info('[Realtime] channel message received', {
+						channelId: selectedChannelId,
+						eventType: payload.eventType,
+						messageId: payload.new.id,
+						payloadChannelId: payload.new.channel_id,
+						payload
+					});
+					void loadChannelMessages({ silent: true });
+				}
+			)
+			.subscribe((status) => {
+				console.info('[Realtime] channel subscription status changed', {
+					channelId: selectedChannelId,
+					status,
+					userId: session.user.id,
+					hasAccessToken: Boolean(session.access_token)
+				});
+
+				if (status === 'SUBSCRIBED') {
+					console.info('[Realtime] channel subscription ready', {
+						channelId: selectedChannelId,
+						userId: session.user.id
+					});
+				}
+
+				if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+					setChannelMessagesError('채널 메시지 실시간 구독이 끊겼습니다. 잠시 후 다시 시도해주세요.');
+				}
+			});
+
+		return () => {
+			console.info('[Realtime] channel subscription removed', {
+				channelId: selectedChannelId
+			});
+			void supabase.removeChannel(realtimeChannel);
+		};
+	}, [loadChannelMessages, selectedChannelId, session]);
 
 	useEffect(() => {
 		if (!session || !selectedDirectConversationId) {
@@ -559,12 +671,17 @@ function App() {
 			const data = (await response.json()) as MessageResponse;
 
 			if (isChannelTarget) {
+				console.info('[Messages] channel message sent', {
+					selectedChannelId,
+					responseChannelId: data.message.channelId,
+					messageId: data.message.id
+				});
 				setChannelMessageDraft('');
-				setChannelMessages((currentMessages) => [...currentMessages, data.message]);
+				setChannelMessages((currentMessages) => upsertMessage(currentMessages, data.message));
 				setMessageComposerStatus('채널 메시지를 보냈습니다.');
 			} else {
 				setDirectConversationMessageDraft('');
-				setDirectConversationMessages((currentMessages) => [...currentMessages, data.message]);
+				setDirectConversationMessages((currentMessages) => upsertMessage(currentMessages, data.message));
 				setMessageComposerStatus('DM 메시지를 보냈습니다.');
 			}
 		} catch (error) {

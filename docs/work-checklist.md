@@ -115,7 +115,7 @@
 ### 7. 실시간 반영
 
 - [x] Supabase Realtime 구독 전략 확정 (`docs/supabase-realtime-subscription-strategy.md`)
-- [ ] 채널 메시지 실시간 수신
+- [x] 채널 메시지 실시간 수신
 - [ ] DM 메시지 실시간 수신
 - [ ] 메시지 수정/삭제 이벤트 반영
 - [ ] 중복 이벤트 처리 방지
