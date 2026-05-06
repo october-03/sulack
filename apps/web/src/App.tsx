@@ -1,22 +1,17 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import { MoreVertical, SendHorizontal } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import { AppSidebar } from '@/components/app-sidebar';
 import {
-	Breadcrumb,
-	BreadcrumbItem,
-	BreadcrumbList,
-	BreadcrumbPage,
-	BreadcrumbSeparator
-} from '@/components/ui/breadcrumb';
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { supabase } from './lib/supabase';
-
-type HealthResponse = {
-	status: string;
-	timestamp: string;
-};
 
 type ChannelItem = {
 	id: string;
@@ -32,22 +27,6 @@ type ChannelItem = {
 
 type ChannelListResponse = {
 	channels: ChannelItem[];
-};
-
-type ChannelMember = {
-	user: {
-		id: string;
-		email: string;
-		displayName: string;
-		avatarUrl: string | null;
-		statusMessage: string | null;
-	};
-	role: 'admin' | 'member';
-	joinedAt: string;
-};
-
-type ChannelMembersResponse = {
-	members: ChannelMember[];
 };
 
 type DirectConversationParticipant = {
@@ -104,10 +83,6 @@ type MessageResponse = {
 };
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-const dmDateFormatter = new Intl.DateTimeFormat('ko-KR', {
-	month: 'short',
-	day: 'numeric'
-});
 const messageTimeFormatter = new Intl.DateTimeFormat('ko-KR', {
 	month: 'short',
 	day: 'numeric',
@@ -137,14 +112,11 @@ function App() {
 		channelId?: string;
 		conversationId?: string;
 	}>();
-	const [health, setHealth] = useState<HealthResponse | null>(null);
 	const [session, setSession] = useState<Session | null>(null);
 	const [authError, setAuthError] = useState<string | null>(null);
 	const [channels, setChannels] = useState<ChannelItem[]>([]);
 	const [channelError, setChannelError] = useState<string | null>(null);
-	const [channelMembers, setChannelMembers] = useState<ChannelMember[]>([]);
 	const [directConversations, setDirectConversations] = useState<DirectConversationItem[]>([]);
-	const [channelMembersError, setChannelMembersError] = useState<string | null>(null);
 	const [directConversationError, setDirectConversationError] = useState<string | null>(null);
 	const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
 	const [selectedDirectConversationId, setSelectedDirectConversationId] = useState<string | null>(null);
@@ -153,7 +125,6 @@ function App() {
 	const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
 	const [editingMessageDraft, setEditingMessageDraft] = useState('');
 	const [messageComposerError, setMessageComposerError] = useState<string | null>(null);
-	const [messageComposerStatus, setMessageComposerStatus] = useState<string | null>(null);
 	const [channelMessages, setChannelMessages] = useState<MessageItem[]>([]);
 	const [directConversationMessages, setDirectConversationMessages] = useState<MessageItem[]>([]);
 	const [channelMessagesError, setChannelMessagesError] = useState<string | null>(null);
@@ -161,7 +132,6 @@ function App() {
 	const [isAuthLoading, setIsAuthLoading] = useState(false);
 	const [isSessionLoading, setIsSessionLoading] = useState(true);
 	const [isChannelsLoading, setIsChannelsLoading] = useState(false);
-	const [isChannelMembersLoading, setIsChannelMembersLoading] = useState(false);
 	const [isDirectConversationsLoading, setIsDirectConversationsLoading] = useState(false);
 	const [isMessageSending, setIsMessageSending] = useState(false);
 	const [isMessageMutating, setIsMessageMutating] = useState(false);
@@ -169,6 +139,15 @@ function App() {
 	const [isDirectConversationMessagesLoading, setIsDirectConversationMessagesLoading] = useState(false);
 	const selectedChannelIdRef = useRef<string | null>(null);
 	const selectedDirectConversationIdRef = useRef<string | null>(null);
+	const chatScrollRef = useRef<HTMLDivElement | null>(null);
+
+	const scrollChatToBottom = useCallback(() => {
+		if (!chatScrollRef.current) {
+			return;
+		}
+
+		chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+	}, []);
 
 	useEffect(() => {
 		if (!isSessionLoading && !session) {
@@ -221,11 +200,20 @@ function App() {
 	}, [selectedDirectConversationId]);
 
 	useEffect(() => {
-		void fetch(`${apiBaseUrl}/health`)
-			.then(async (response) => response.json() as Promise<HealthResponse>)
-			.then((data) => setHealth(data))
-			.catch(() => setHealth(null));
-	}, []);
+		if (!selectedChannelId) {
+			return;
+		}
+
+		scrollChatToBottom();
+	}, [channelMessages, selectedChannelId, scrollChatToBottom]);
+
+	useEffect(() => {
+		if (!selectedDirectConversationId) {
+			return;
+		}
+
+		scrollChatToBottom();
+	}, [directConversationMessages, selectedDirectConversationId, scrollChatToBottom]);
 
 	useEffect(() => {
 		let isMounted = true;
@@ -255,9 +243,12 @@ function App() {
 	}, []);
 
 	useEffect(() => {
+		if (isSessionLoading) {
+			return;
+		}
+
 		if (!session) {
 			setChannels([]);
-			setChannelMembers([]);
 			setDirectConversations([]);
 			setSelectedChannelId(null);
 			setSelectedDirectConversationId(null);
@@ -268,14 +259,11 @@ function App() {
 			setChannelMessages([]);
 			setDirectConversationMessages([]);
 			setChannelError(null);
-			setChannelMembersError(null);
 			setDirectConversationError(null);
 			setChannelMessagesError(null);
 			setDirectConversationMessagesError(null);
 			setMessageComposerError(null);
-			setMessageComposerStatus(null);
 			setIsChannelsLoading(false);
-			setIsChannelMembersLoading(false);
 			setIsDirectConversationsLoading(false);
 			setIsChannelMessagesLoading(false);
 			setIsDirectConversationMessagesLoading(false);
@@ -328,9 +316,13 @@ function App() {
 		return () => {
 			isCancelled = true;
 		};
-	}, [session]);
+	}, [isSessionLoading, session]);
 
 	useEffect(() => {
+		if (isSessionLoading) {
+			return;
+		}
+
 		if (!session) {
 			setDirectConversations([]);
 			setSelectedDirectConversationId(null);
@@ -383,60 +375,7 @@ function App() {
 		return () => {
 			isCancelled = true;
 		};
-	}, [session]);
-
-	useEffect(() => {
-		if (!session || !selectedChannelId) {
-			setChannelMembers([]);
-			setChannelMembersError(null);
-			setIsChannelMembersLoading(false);
-			return;
-		}
-
-		let isCancelled = false;
-
-		const loadChannelMembers = async () => {
-			setIsChannelMembersLoading(true);
-			setChannelMembersError(null);
-
-			try {
-				const response = await fetch(`${apiBaseUrl}/channels/${selectedChannelId}/members`, {
-					headers: {
-						Authorization: `Bearer ${session.access_token}`
-					}
-				});
-
-				if (!response.ok) {
-					throw new Error(`채널 멤버를 불러오지 못했습니다. (${response.status})`);
-				}
-
-				const data = (await response.json()) as ChannelMembersResponse;
-
-				if (isCancelled) {
-					return;
-				}
-
-				setChannelMembers(data.members);
-			} catch (error) {
-				if (isCancelled) {
-					return;
-				}
-
-				setChannelMembers([]);
-				setChannelMembersError(error instanceof Error ? error.message : '채널 멤버를 불러오지 못했습니다.');
-			} finally {
-				if (!isCancelled) {
-					setIsChannelMembersLoading(false);
-				}
-			}
-		};
-
-		void loadChannelMembers();
-
-		return () => {
-			isCancelled = true;
-		};
-	}, [selectedChannelId, session]);
+	}, [isSessionLoading, session]);
 
 	const loadChannelMessages = useCallback(
 		async (options?: { signal?: AbortSignal; silent?: boolean }) => {
@@ -799,7 +738,6 @@ function App() {
 
 		setIsMessageSending(true);
 		setMessageComposerError(null);
-		setMessageComposerStatus(null);
 
 		const endpoint = isChannelTarget
 			? `${apiBaseUrl}/channels/${targetId}/messages`
@@ -831,7 +769,6 @@ function App() {
 				});
 				setChannelMessageDraft('');
 				setChannelMessages((currentMessages) => upsertMessage(currentMessages, data.message));
-				setMessageComposerStatus('채널 메시지를 보냈습니다.');
 			} else {
 				console.info('[Messages] direct conversation message sent', {
 					selectedDirectConversationId,
@@ -840,7 +777,6 @@ function App() {
 				});
 				setDirectConversationMessageDraft('');
 				setDirectConversationMessages((currentMessages) => upsertMessage(currentMessages, data.message));
-				setMessageComposerStatus('DM 메시지를 보냈습니다.');
 			}
 		} catch (error) {
 			setMessageComposerError(error instanceof Error ? error.message : '메시지를 보내지 못했습니다.');
@@ -863,7 +799,6 @@ function App() {
 		setEditingMessageId(message.id);
 		setEditingMessageDraft(message.content);
 		setMessageComposerError(null);
-		setMessageComposerStatus(null);
 	};
 
 	const handleCancelEditMessage = () => {
@@ -888,7 +823,6 @@ function App() {
 
 		setIsMessageMutating(true);
 		setMessageComposerError(null);
-		setMessageComposerStatus(null);
 
 		try {
 			const response = await fetch(`${apiBaseUrl}/messages/${message.id}`, {
@@ -910,7 +844,6 @@ function App() {
 			applyMessageResponse(data.message);
 			setEditingMessageId(null);
 			setEditingMessageDraft('');
-			setMessageComposerStatus('메시지를 수정했습니다.');
 		} catch (error) {
 			setMessageComposerError(error instanceof Error ? error.message : '메시지를 수정하지 못했습니다.');
 		} finally {
@@ -930,7 +863,6 @@ function App() {
 
 		setIsMessageMutating(true);
 		setMessageComposerError(null);
-		setMessageComposerStatus(null);
 
 		try {
 			const response = await fetch(`${apiBaseUrl}/messages/${message.id}`, {
@@ -949,7 +881,6 @@ function App() {
 			setEditingMessageId((currentEditingMessageId) =>
 				currentEditingMessageId === message.id ? null : currentEditingMessageId
 			);
-			setMessageComposerStatus('메시지를 삭제했습니다.');
 		} catch (error) {
 			setMessageComposerError(error instanceof Error ? error.message : '메시지를 삭제하지 못했습니다.');
 		} finally {
@@ -957,7 +888,6 @@ function App() {
 		}
 	};
 
-	const lastSeen = health?.timestamp ?? 'Start the API server to see live status.';
 	const profileEmail = session?.user.email ?? 'unknown user';
 	const profileMetadataDisplayName = session?.user.user_metadata?.display_name;
 	const profileName =
@@ -1049,18 +979,20 @@ function App() {
 									<p>{message.deletedAt ? '삭제된 메시지입니다.' : message.content}</p>
 								)}
 								{canMutate && !isEditing ? (
-									<div className="message-actions">
-										<button type="button" onClick={() => handleStartEditMessage(message)} disabled={isMessageMutating}>
-											Edit
-										</button>
-										<button
-											type="button"
-											onClick={() => void handleDeleteMessage(message)}
-											disabled={isMessageMutating}
-										>
-											Delete
-										</button>
-									</div>
+									<DropdownMenu>
+										<DropdownMenuTrigger asChild>
+											<button className="message-menu-trigger" type="button" disabled={isMessageMutating}>
+												<MoreVertical />
+												<span className="sr-only">Message actions</span>
+											</button>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent align="end">
+											<DropdownMenuItem onClick={() => handleStartEditMessage(message)}>Edit</DropdownMenuItem>
+											<DropdownMenuItem variant="destructive" onClick={() => void handleDeleteMessage(message)}>
+												Delete
+											</DropdownMenuItem>
+										</DropdownMenuContent>
+									</DropdownMenu>
 								) : null}
 							</div>
 						</article>
@@ -1069,7 +1001,6 @@ function App() {
 			</div>
 		);
 	};
-
 	return (
 		<SidebarProvider>
 			<AppSidebar
@@ -1095,254 +1026,112 @@ function App() {
 				onSelectDirectConversation={handleSelectDirectConversation}
 			/>
 
-			<SidebarInset>
+			<SidebarInset className="chat-layout">
 				<header className="flex h-16 shrink-0 items-center gap-2 border-b">
-					<div className="flex items-center gap-2 px-3">
+					<div className="flex min-w-0 flex-1 items-center gap-2 px-3">
 						<SidebarTrigger />
 						<Separator orientation="vertical" className="mr-2 h-4" />
-						<Breadcrumb>
-							<BreadcrumbList>
-								<BreadcrumbItem className="hidden md:block">Sulack</BreadcrumbItem>
-								<BreadcrumbSeparator className="hidden md:block" />
-								<BreadcrumbItem>
-									<BreadcrumbPage>{currentPageLabel}</BreadcrumbPage>
-								</BreadcrumbItem>
-							</BreadcrumbList>
-						</Breadcrumb>
+						<div className="min-w-0">
+							<h1 className="truncate text-base font-semibold">{currentPageLabel}</h1>
+							<p className="truncate text-xs text-muted-foreground">
+								{selectedChannel
+									? `${selectedChannel.memberCount} members`
+									: selectedDirectConversation
+										? 'Direct message'
+										: 'Select a conversation'}
+							</p>
+						</div>
 					</div>
 				</header>
-				<section className="content-panel p-4">
-					<div className="hero">
-						<p className="eyebrow">Supabase Auth</p>
-						<h2>{selectedChannel ? selectedChannel.name : 'Sulack Access Portal'}</h2>
-						<p className="description">
-							{selectedChannel
-								? (selectedChannel.description ??
-									'채널 설명이 아직 없습니다. 이제 메시지 패널과 채널 상세 화면을 이어서 붙일 수 있습니다.')
-								: '이메일 기반 로그인으로 세션을 유지하고, 보호된 API 요청에 access token을 연결하는 흐름을 확인할 수 있습니다.'}
-						</p>
-
-						{selectedChannel ? (
-							<div className="channel-spotlight">
-								<div className="spotlight-stat">
-									<span>Visibility</span>
-									<strong>{selectedChannel.visibility}</strong>
-								</div>
-								<div className="spotlight-stat">
-									<span>Members</span>
-									<strong>{selectedChannel.memberCount}</strong>
-								</div>
-								<div className="spotlight-stat">
-									<span>My role</span>
-									<strong>{selectedChannel.membership?.role ?? 'not joined'}</strong>
-								</div>
+				<section className="chat-screen">
+					<div className="chat-scroll" ref={chatScrollRef}>
+						{selectedChannel
+							? renderMessageList(
+									channelMessages,
+									isChannelMessagesLoading,
+									channelMessagesError,
+									'아직 채널 메시지가 없습니다.',
+									'Channel messages'
+								)
+							: null}
+						{selectedDirectConversation
+							? renderMessageList(
+									directConversationMessages,
+									isDirectConversationMessagesLoading,
+									directConversationMessagesError,
+									'아직 DM 메시지가 없습니다.',
+									'Direct conversation messages'
+								)
+							: null}
+						{session && !selectedChannel && !selectedDirectConversation ? (
+							<div className="chat-empty-state">
+								<strong>대화를 선택해주세요.</strong>
+								<span>왼쪽 사이드바에서 채널이나 DM을 선택하면 메시지가 표시됩니다.</span>
 							</div>
 						) : null}
+					</div>
 
-						<section className="message-composer-panel">
-							<div className="members-panel-heading">
-								<div>
-									<span className="card-kicker">Channel Messages</span>
-									<h3>{selectedChannel ? `# ${selectedChannel.name}` : 'Select a channel'}</h3>
-								</div>
-								{selectedChannel ? <span className="channel-pill">Channel</span> : null}
-							</div>
-
-							{!session ? <p className="helper-text">로그인 후 채널 메시지를 확인할 수 있습니다.</p> : null}
-							{session && !selectedChannel ? <p className="helper-text">좌측에서 채널을 선택해주세요.</p> : null}
-							{session && selectedChannel
-								? renderMessageList(
-										channelMessages,
-										isChannelMessagesLoading,
-										channelMessagesError,
-										'아직 채널 메시지가 없습니다.',
-										'Channel messages'
-									)
-								: null}
-
+					<div className="chat-composer">
+						{selectedChannel ? (
 							<form className="message-composer-form" onSubmit={(event) => void handleSendMessage(event, 'channel')}>
-								<label className="field">
-									<span>Message</span>
-									<textarea
-										value={channelMessageDraft}
-										onChange={(event) => setChannelMessageDraft(event.target.value)}
-										placeholder={
-											selectedChannel ? `${selectedChannel.name}에 메시지 보내기` : '좌측에서 채널을 선택하세요'
-										}
-										rows={4}
-										maxLength={4000}
-										disabled={!session || !selectedChannel || isMessageSending}
-									/>
-								</label>
-								<div className="composer-actions">
-									<small>{channelMessageDraft.trim().length}/4000</small>
+								<div className="chat-editor">
+									<label className="chat-editor-body">
+										<span className="sr-only">Message</span>
+										<textarea
+											value={channelMessageDraft}
+											onChange={(event) => setChannelMessageDraft(event.target.value)}
+											placeholder={`#${selectedChannel.name}에 메시지 보내기`}
+											rows={3}
+											maxLength={4000}
+											disabled={!session || isMessageSending}
+										/>
+									</label>
 									<button
-										className="primary-button"
+										className="chat-send-button"
 										type="submit"
-										disabled={!session || !selectedChannel || isMessageSending || !channelMessageDraft.trim()}
+										disabled={!session || isMessageSending || !channelMessageDraft.trim()}
+										aria-label="Send channel message"
 									>
-										{isMessageSending ? 'Sending...' : 'Send'}
+										<SendHorizontal />
 									</button>
 								</div>
 							</form>
+						) : null}
 
-							{messageComposerStatus ? <p className="helper-text">{messageComposerStatus}</p> : null}
-							{messageComposerError ? <p className="error-message">{messageComposerError}</p> : null}
-						</section>
-
-						<section className="members-panel">
-							<div className="members-panel-heading">
-								<div>
-									<span className="card-kicker">Channel Members</span>
-									<h3>{selectedChannel ? `${selectedChannel.name} members` : 'Select a channel'}</h3>
-								</div>
-								{selectedChannel ? <strong>{channelMembers.length}</strong> : null}
-							</div>
-
-							{!session ? <p className="helper-text">로그인 후 선택한 채널의 멤버 목록이 여기에 표시됩니다.</p> : null}
-							{session && !selectedChannel ? (
-								<p className="helper-text">좌측에서 채널을 선택하면 멤버 목록을 볼 수 있습니다.</p>
-							) : null}
-							{session && selectedChannel && isChannelMembersLoading ? (
-								<p className="helper-text">채널 멤버를 불러오는 중입니다...</p>
-							) : null}
-							{session && selectedChannel && channelMembersError ? (
-								<p className="error-message">{channelMembersError}</p>
-							) : null}
-							{session &&
-							selectedChannel &&
-							!isChannelMembersLoading &&
-							!channelMembersError &&
-							channelMembers.length === 0 ? (
-								<p className="helper-text">아직 표시할 멤버가 없습니다.</p>
-							) : null}
-
-							{channelMembers.length > 0 ? (
-								<div className="member-list" role="list" aria-label="Channel members">
-									{channelMembers.map((member) => (
-										<article key={member.user.id} className="member-card">
-											<div className="member-card-top">
-												<div className="member-avatar" aria-hidden="true">
-													{member.user.displayName.slice(0, 1).toUpperCase()}
-												</div>
-												<div className="member-copy">
-													<strong>{member.user.displayName}</strong>
-													<span>{member.user.email}</span>
-												</div>
-												<span className="channel-pill">{member.role}</span>
-											</div>
-											<p>{member.user.statusMessage ?? '상태 메시지가 아직 없습니다.'}</p>
-										</article>
-									))}
-								</div>
-							) : null}
-						</section>
-
-						<section className="members-panel">
-							<div className="members-panel-heading">
-								<div>
-									<span className="card-kicker">Direct Messages</span>
-									<h3>{selectedDirectConversationCounterpart?.displayName ?? 'Select a DM'}</h3>
-								</div>
-								{selectedDirectConversation ? <strong>{selectedDirectConversation.participants.length}</strong> : null}
-							</div>
-
-							{!session ? <p className="helper-text">로그인 후 DM 목록과 상대방 정보를 확인할 수 있습니다.</p> : null}
-							{session && isDirectConversationsLoading ? (
-								<p className="helper-text">DM 목록을 불러오는 중입니다...</p>
-							) : null}
-							{session && !isDirectConversationsLoading && directConversationError ? (
-								<p className="error-message">{directConversationError}</p>
-							) : null}
-							{session &&
-							!isDirectConversationsLoading &&
-							!directConversationError &&
-							directConversations.length === 0 ? (
-								<p className="helper-text">기존 DM이 생기면 이 패널에서 상대방 정보를 빠르게 확인할 수 있습니다.</p>
-							) : null}
-
-							{selectedDirectConversation && selectedDirectConversationCounterpart ? (
-								<article className="member-card dm-detail-card">
-									<div className="member-card-top">
-										<div className="member-avatar member-avatar-large" aria-hidden="true">
-											{selectedDirectConversationCounterpart.displayName.slice(0, 1).toUpperCase()}
-										</div>
-										<div className="member-copy">
-											<strong>{selectedDirectConversationCounterpart.displayName}</strong>
-											<span>{selectedDirectConversationCounterpart.email}</span>
-										</div>
-										<span className="channel-pill">1:1 DM</span>
-									</div>
-									<p>{selectedDirectConversationCounterpart.statusMessage ?? '아직 상태 메시지가 없습니다.'}</p>
-									<div className="channel-meta">
-										<span>Started {dmDateFormatter.format(new Date(selectedDirectConversation.createdAt))}</span>
-										<span>{selectedDirectConversation.id.slice(0, 8)}</span>
-									</div>
-								</article>
-							) : null}
-
-							{session && selectedDirectConversation
-								? renderMessageList(
-										directConversationMessages,
-										isDirectConversationMessagesLoading,
-										directConversationMessagesError,
-										'아직 DM 메시지가 없습니다.',
-										'Direct conversation messages'
-									)
-								: null}
-
+						{selectedDirectConversation ? (
 							<form
 								className="message-composer-form"
 								onSubmit={(event) => void handleSendMessage(event, 'directConversation')}
 							>
-								<label className="field">
-									<span>Message</span>
-									<textarea
-										value={directConversationMessageDraft}
-										onChange={(event) => setDirectConversationMessageDraft(event.target.value)}
-										placeholder={
-											selectedDirectConversationCounterpart
-												? `${selectedDirectConversationCounterpart.displayName}에게 메시지 보내기`
-												: '좌측에서 DM을 선택하세요'
-										}
-										rows={4}
-										maxLength={4000}
-										disabled={!session || !selectedDirectConversation || isMessageSending}
-									/>
-								</label>
-								<div className="composer-actions">
-									<small>{directConversationMessageDraft.trim().length}/4000</small>
+								<div className="chat-editor">
+									<label className="chat-editor-body">
+										<span className="sr-only">Message</span>
+										<textarea
+											value={directConversationMessageDraft}
+											onChange={(event) => setDirectConversationMessageDraft(event.target.value)}
+											placeholder={
+												selectedDirectConversationCounterpart
+													? `${selectedDirectConversationCounterpart.displayName}에게 메시지 보내기`
+													: '메시지 보내기'
+											}
+											rows={3}
+											maxLength={4000}
+											disabled={!session || isMessageSending}
+										/>
+									</label>
 									<button
-										className="primary-button secondary-tone"
+										className="chat-send-button"
 										type="submit"
-										disabled={
-											!session ||
-											!selectedDirectConversation ||
-											isMessageSending ||
-											!directConversationMessageDraft.trim()
-										}
+										disabled={!session || isMessageSending || !directConversationMessageDraft.trim()}
+										aria-label="Send direct message"
 									>
-										{isMessageSending ? 'Sending...' : 'Send DM'}
+										<SendHorizontal />
 									</button>
 								</div>
 							</form>
-						</section>
+						) : null}
 
-						<div className="panel-grid panel-grid-status">
-							<aside className="status-card">
-								<span>API Health</span>
-								<strong>{health?.status ?? 'disconnected'}</strong>
-								<small>{lastSeen}</small>
-								<div className="status-divider" />
-								<span>Session Status</span>
-								<strong>{isSessionLoading ? 'checking' : session ? 'authenticated' : 'signed out'}</strong>
-								<small>
-									{session
-										? '채널 목록 API에 access token을 붙여 보호된 요청까지 연결된 상태입니다.'
-										: '로그인 후 채널, DM, 메시지 화면을 이어서 구성할 수 있습니다.'}
-								</small>
-							</aside>
-						</div>
+						{messageComposerError ? <p className="error-message">{messageComposerError}</p> : null}
 					</div>
 				</section>
 			</SidebarInset>
