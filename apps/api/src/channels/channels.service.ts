@@ -68,18 +68,11 @@ export class ChannelsService {
 
 		return this.prismaService.channel.findMany({
 			where: {
-				OR: [
-					{
-						visibility: ChannelVisibility.public
-					},
-					{
-						members: {
-							some: {
-								userId: user.id
-							}
-						}
+				members: {
+					some: {
+						userId: user.id
 					}
-				]
+				}
 			},
 			orderBy: [
 				{

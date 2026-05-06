@@ -36,7 +36,7 @@ export class ChannelsController {
 	constructor(private readonly channelsService: ChannelsService) {}
 
 	@Get()
-	@ApiOperation({ summary: 'List channels visible to the current authenticated user' })
+	@ApiOperation({ summary: 'List channels joined by the current authenticated user' })
 	@ApiOkResponse({ type: ChannelListResponseDto })
 	async listChannels(@CurrentUser() authUser: AuthenticatedRequestUser) {
 		const channels = await this.channelsService.listChannels(authUser.user);
