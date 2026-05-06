@@ -1,9 +1,14 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { MessageType, type Prisma } from '../generated/prisma/client';
 import type { SupabaseUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProfilesService } from '../profiles/profiles.service';
-import { type CreateMessageDto, type ListMessagesQueryDto, type MessageListItem } from './messages.dto';
+import {
+	type CreateMessageDto,
+	type ListMessagesQueryDto,
+	type MessageListItem,
+	type UpdateMessageDto
+} from './messages.dto';
 
 const messageListInclude = {
 	author: {
@@ -42,6 +47,45 @@ export class MessagesService {
 		private readonly prismaService: PrismaService,
 		private readonly profilesService: ProfilesService
 	) {}
+
+	async updateMessage(user: SupabaseUser, messageId: string, payload: UpdateMessageDto): Promise<MessageListItem> {
+		await this.profilesService.ensureMyProfile(user);
+
+		const message = await this.prismaService.message.findUnique({
+			where: {
+				id: messageId
+			},
+			select: {
+				id: true,
+				authorId: true,
+				deletedAt: true
+			}
+		});
+
+		if (!message) {
+			throw new NotFoundException('Message not found.');
+		}
+
+		if (message.authorId !== user.id) {
+			throw new ForbiddenException('Only the message author can update the message.');
+		}
+
+		if (message.deletedAt) {
+			throw new BadRequestException('Deleted messages cannot be edited.');
+		}
+
+		const content = this.normalizeContent(payload.content);
+
+		return this.prismaService.message.update({
+			where: {
+				id: messageId
+			},
+			data: {
+				content
+			},
+			include: messageListInclude
+		});
+	}
 
 	async createChannelMessage(
 		user: SupabaseUser,
@@ -92,11 +136,7 @@ export class MessagesService {
 		target: Pick<Prisma.MessageUncheckedCreateInput, 'channelId' | 'conversationId'>,
 		payload: CreateMessageDto
 	): Promise<MessageListItem> {
-		const content = payload.content.trim();
-
-		if (!content) {
-			throw new BadRequestException('Message content cannot be blank.');
-		}
+		const content = this.normalizeContent(payload.content);
 
 		return this.prismaService.message.create({
 			data: {
@@ -107,6 +147,16 @@ export class MessagesService {
 			},
 			include: messageListInclude
 		});
+	}
+
+	private normalizeContent(content: string) {
+		const normalizedContent = content.trim();
+
+		if (!normalizedContent) {
+			throw new BadRequestException('Message content cannot be blank.');
+		}
+
+		return normalizedContent;
 	}
 
 	private async listMessages(

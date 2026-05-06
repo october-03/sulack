@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import {
 	ApiBearerAuth,
 	ApiBadRequestResponse,
 	ApiCreatedResponse,
+	ApiForbiddenResponse,
 	ApiNotFoundResponse,
 	ApiOkResponse,
 	ApiOperation,
@@ -12,7 +13,13 @@ import {
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedRequestUser } from '../auth/auth.types';
-import { CreateMessageDto, ListMessagesQueryDto, MessageListResponseDto, MessageResponseDto } from './messages.dto';
+import {
+	CreateMessageDto,
+	ListMessagesQueryDto,
+	MessageListResponseDto,
+	MessageResponseDto,
+	UpdateMessageDto
+} from './messages.dto';
 import { MessagesService } from './messages.service';
 
 @ApiTags('messages')
@@ -27,6 +34,24 @@ import { MessagesService } from './messages.service';
 @UseGuards(AuthGuard)
 export class MessagesController {
 	constructor(private readonly messagesService: MessagesService) {}
+
+	@Patch('messages/:messageId')
+	@ApiOperation({ summary: 'Update a text message authored by the current authenticated user' })
+	@ApiOkResponse({ type: MessageResponseDto })
+	@ApiBadRequestResponse({
+		description: 'Message content cannot be blank or deleted messages cannot be edited.'
+	})
+	@ApiForbiddenResponse({
+		description: 'Only the message author can update the message.'
+	})
+	async updateMessage(
+		@CurrentUser() authUser: AuthenticatedRequestUser,
+		@Param('messageId', new ParseUUIDPipe()) messageId: string,
+		@Body() payload: UpdateMessageDto
+	) {
+		const message = await this.messagesService.updateMessage(authUser.user, messageId, payload);
+		return MessageResponseDto.from(message);
+	}
 
 	@Post('channels/:channelId/messages')
 	@ApiOperation({ summary: 'Create a text message in a channel as the current authenticated member' })

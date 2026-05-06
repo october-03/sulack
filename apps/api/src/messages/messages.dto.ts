@@ -13,6 +13,16 @@ export class CreateMessageDto {
 	content!: string;
 }
 
+export class UpdateMessageDto {
+	@ApiProperty({
+		example: '이번 릴리즈 범위를 조금 더 구체적으로 공유합니다.'
+	})
+	@IsString()
+	@IsNotEmpty()
+	@MaxLength(4000)
+	content!: string;
+}
+
 export class ListMessagesQueryDto {
 	@ApiPropertyOptional({
 		example: 50,
