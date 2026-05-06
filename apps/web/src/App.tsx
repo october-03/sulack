@@ -1,6 +1,16 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { useLocation, useNavigate, useParams } from 'react-router';
+import { AppSidebar } from '@/components/app-sidebar';
+import {
+	Breadcrumb,
+	BreadcrumbItem,
+	BreadcrumbList,
+	BreadcrumbPage,
+	BreadcrumbSeparator
+} from '@/components/ui/breadcrumb';
+import { Separator } from '@/components/ui/separator';
+import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { supabase } from './lib/supabase';
 
 type HealthResponse = {
@@ -948,6 +958,13 @@ function App() {
 	};
 
 	const lastSeen = health?.timestamp ?? 'Start the API server to see live status.';
+	const profileEmail = session?.user.email ?? 'unknown user';
+	const profileMetadataDisplayName = session?.user.user_metadata?.display_name;
+	const profileName =
+		typeof profileMetadataDisplayName === 'string' && profileMetadataDisplayName.trim()
+			? profileMetadataDisplayName
+			: profileEmail.split('@')[0];
+	const profileInitial = profileName.slice(0, 1).toUpperCase();
 	const selectedChannel = channels.find((channel) => channel.id === selectedChannelId) ?? null;
 	const selectedDirectConversation =
 		directConversations.find((conversation) => conversation.id === selectedDirectConversationId) ?? null;
@@ -966,6 +983,11 @@ function App() {
 		selectedDirectConversation?.participants.find((participant) => participant.id !== session?.user.id) ??
 		selectedDirectConversation?.participants[0] ??
 		null;
+	const currentPageLabel = selectedChannel
+		? selectedChannel.name
+		: selectedDirectConversationCounterpart
+			? selectedDirectConversationCounterpart.displayName
+			: 'Overview';
 	const renderMessageList = (
 		messages: MessageItem[],
 		isLoading: boolean,
@@ -1049,376 +1071,282 @@ function App() {
 	};
 
 	return (
-		<main className="workspace-shell">
-			<aside className="sidebar">
-				<div className="sidebar-header">
-					<p className="eyebrow">Sulack</p>
-					<h1>Channels</h1>
-					<p className="sidebar-copy">
-						{session
-							? '공개 채널과 내가 접근 가능한 비공개 채널을 한눈에 확인할 수 있습니다.'
-							: '로그인하면 채널 목록이 여기에 표시됩니다.'}
-					</p>
-				</div>
+		<SidebarProvider>
+			<AppSidebar
+				authError={authError}
+				channelError={channelError}
+				channels={channels}
+				directConversationError={directConversationError}
+				directConversations={directConversationItems.map(({ conversation, label }) => ({
+					id: conversation.id,
+					label
+				}))}
+				isAuthLoading={isAuthLoading}
+				isChannelLoading={isChannelsLoading}
+				isDirectConversationLoading={isDirectConversationsLoading}
+				isSessionLoading={isSessionLoading}
+				profileEmail={profileEmail}
+				profileInitial={profileInitial}
+				profileName={profileName}
+				selectedChannelId={selectedChannelId}
+				selectedDirectConversationId={selectedDirectConversationId}
+				onLogout={() => void handleLogout()}
+				onSelectChannel={handleSelectChannel}
+				onSelectDirectConversation={handleSelectDirectConversation}
+			/>
 
-				<div className="sidebar-panel">
-					<div className="sidebar-panel-heading">
-						<span>Browse</span>
-						<strong>{session ? `${channels.length} channels` : 'Sign in required'}</strong>
+			<SidebarInset>
+				<header className="flex h-16 shrink-0 items-center gap-2 border-b">
+					<div className="flex items-center gap-2 px-3">
+						<SidebarTrigger />
+						<Separator orientation="vertical" className="mr-2 h-4" />
+						<Breadcrumb>
+							<BreadcrumbList>
+								<BreadcrumbItem className="hidden md:block">Sulack</BreadcrumbItem>
+								<BreadcrumbSeparator className="hidden md:block" />
+								<BreadcrumbItem>
+									<BreadcrumbPage>{currentPageLabel}</BreadcrumbPage>
+								</BreadcrumbItem>
+							</BreadcrumbList>
+						</Breadcrumb>
 					</div>
-
-					{isSessionLoading ? <p className="helper-text">세션을 확인하는 중입니다...</p> : null}
-					{!isSessionLoading && !session ? (
-						<p className="helper-text">좌측 채널 목록은 로그인 후 자동으로 불러옵니다.</p>
-					) : null}
-					{session && isChannelsLoading ? <p className="helper-text">채널 목록을 불러오는 중입니다...</p> : null}
-					{session && channelError ? <p className="error-message">{channelError}</p> : null}
-					{session && !isChannelsLoading && !channelError && channels.length === 0 ? (
-						<p className="helper-text">아직 표시할 채널이 없습니다. API에서 첫 채널을 생성해보세요.</p>
-					) : null}
-
-					{session && channels.length > 0 ? (
-						<div className="channel-list" role="list" aria-label="Channels">
-							{channels.map((channel) => {
-								const isSelected = channel.id === selectedChannelId;
-
-								return (
-									<button
-										key={channel.id}
-										type="button"
-										className={`channel-card${isSelected ? ' channel-card-active' : ''}`}
-										onClick={() => handleSelectChannel(channel.id)}
-									>
-										<div className="channel-card-top">
-											<div>
-												<span className="channel-prefix">{channel.visibility === 'public' ? '#' : 'private'}</span>
-												<strong>{channel.name}</strong>
-											</div>
-											<span className="channel-pill">{channel.membership?.role ?? 'guest'}</span>
-										</div>
-										<p>{channel.description ?? '채널 설명이 아직 없습니다.'}</p>
-										<div className="channel-meta">
-											<span>{channel.memberCount} members</span>
-											<span>{channel.visibility}</span>
-										</div>
-									</button>
-								);
-							})}
-						</div>
-					) : null}
-				</div>
-
-				<div className="sidebar-panel">
-					<div className="sidebar-panel-heading">
-						<span>Direct Messages</span>
-						<strong>{session ? `${directConversations.length} threads` : 'Sign in required'}</strong>
-					</div>
-
-					{isSessionLoading ? <p className="helper-text">세션을 확인하는 중입니다...</p> : null}
-					{!isSessionLoading && !session ? (
-						<p className="helper-text">로그인 후 현재 사용자의 1:1 DM 목록을 불러옵니다.</p>
-					) : null}
-					{session && isDirectConversationsLoading ? (
-						<p className="helper-text">DM 목록을 불러오는 중입니다...</p>
-					) : null}
-					{session && directConversationError ? <p className="error-message">{directConversationError}</p> : null}
-					{session && !isDirectConversationsLoading && !directConversationError && directConversations.length === 0 ? (
-						<p className="helper-text">
-							아직 시작한 1:1 DM이 없습니다. 사용자 검색과 DM 생성 흐름을 붙이면 여기에 표시됩니다.
+				</header>
+				<section className="content-panel p-4">
+					<div className="hero">
+						<p className="eyebrow">Supabase Auth</p>
+						<h2>{selectedChannel ? selectedChannel.name : 'Sulack Access Portal'}</h2>
+						<p className="description">
+							{selectedChannel
+								? (selectedChannel.description ??
+									'채널 설명이 아직 없습니다. 이제 메시지 패널과 채널 상세 화면을 이어서 붙일 수 있습니다.')
+								: '이메일 기반 로그인으로 세션을 유지하고, 보호된 API 요청에 access token을 연결하는 흐름을 확인할 수 있습니다.'}
 						</p>
-					) : null}
 
-					{session && directConversations.length > 0 ? (
-						<div className="dm-list" role="list" aria-label="Direct messages">
-							{directConversationItems.map(({ conversation, counterpart, label }) => {
-								const isSelected = conversation.id === selectedDirectConversationId;
+						{selectedChannel ? (
+							<div className="channel-spotlight">
+								<div className="spotlight-stat">
+									<span>Visibility</span>
+									<strong>{selectedChannel.visibility}</strong>
+								</div>
+								<div className="spotlight-stat">
+									<span>Members</span>
+									<strong>{selectedChannel.memberCount}</strong>
+								</div>
+								<div className="spotlight-stat">
+									<span>My role</span>
+									<strong>{selectedChannel.membership?.role ?? 'not joined'}</strong>
+								</div>
+							</div>
+						) : null}
 
-								return (
+						<section className="message-composer-panel">
+							<div className="members-panel-heading">
+								<div>
+									<span className="card-kicker">Channel Messages</span>
+									<h3>{selectedChannel ? `# ${selectedChannel.name}` : 'Select a channel'}</h3>
+								</div>
+								{selectedChannel ? <span className="channel-pill">Channel</span> : null}
+							</div>
+
+							{!session ? <p className="helper-text">로그인 후 채널 메시지를 확인할 수 있습니다.</p> : null}
+							{session && !selectedChannel ? <p className="helper-text">좌측에서 채널을 선택해주세요.</p> : null}
+							{session && selectedChannel
+								? renderMessageList(
+										channelMessages,
+										isChannelMessagesLoading,
+										channelMessagesError,
+										'아직 채널 메시지가 없습니다.',
+										'Channel messages'
+									)
+								: null}
+
+							<form className="message-composer-form" onSubmit={(event) => void handleSendMessage(event, 'channel')}>
+								<label className="field">
+									<span>Message</span>
+									<textarea
+										value={channelMessageDraft}
+										onChange={(event) => setChannelMessageDraft(event.target.value)}
+										placeholder={
+											selectedChannel ? `${selectedChannel.name}에 메시지 보내기` : '좌측에서 채널을 선택하세요'
+										}
+										rows={4}
+										maxLength={4000}
+										disabled={!session || !selectedChannel || isMessageSending}
+									/>
+								</label>
+								<div className="composer-actions">
+									<small>{channelMessageDraft.trim().length}/4000</small>
 									<button
-										key={conversation.id}
-										type="button"
-										className={`dm-card${isSelected ? ' dm-card-active' : ''}`}
-										onClick={() => handleSelectDirectConversation(conversation.id)}
+										className="primary-button"
+										type="submit"
+										disabled={!session || !selectedChannel || isMessageSending || !channelMessageDraft.trim()}
 									>
-										<div className="dm-card-top">
-											<div className="member-avatar dm-avatar" aria-hidden="true">
-												{label.slice(0, 1).toUpperCase()}
-											</div>
-											<div className="dm-copy">
-												<strong>{label}</strong>
-												<span>{counterpart?.email ?? 'No email available'}</span>
-											</div>
-											<span className="channel-pill">{dmDateFormatter.format(new Date(conversation.createdAt))}</span>
-										</div>
-										<p>{counterpart?.statusMessage ?? '대화를 시작할 준비가 된 동료입니다.'}</p>
+										{isMessageSending ? 'Sending...' : 'Send'}
 									</button>
-								);
-							})}
-						</div>
-					) : null}
-				</div>
-			</aside>
-
-			<section className="content-panel">
-				<div className="hero">
-					<p className="eyebrow">Supabase Auth</p>
-					<h2>{selectedChannel ? selectedChannel.name : 'Sulack Access Portal'}</h2>
-					<p className="description">
-						{selectedChannel
-							? (selectedChannel.description ??
-								'채널 설명이 아직 없습니다. 이제 메시지 패널과 채널 상세 화면을 이어서 붙일 수 있습니다.')
-							: '이메일 기반 로그인으로 세션을 유지하고, 보호된 API 요청에 access token을 연결하는 흐름을 확인할 수 있습니다.'}
-					</p>
-
-					{selectedChannel ? (
-						<div className="channel-spotlight">
-							<div className="spotlight-stat">
-								<span>Visibility</span>
-								<strong>{selectedChannel.visibility}</strong>
-							</div>
-							<div className="spotlight-stat">
-								<span>Members</span>
-								<strong>{selectedChannel.memberCount}</strong>
-							</div>
-							<div className="spotlight-stat">
-								<span>My role</span>
-								<strong>{selectedChannel.membership?.role ?? 'not joined'}</strong>
-							</div>
-						</div>
-					) : null}
-
-					<section className="message-composer-panel">
-						<div className="members-panel-heading">
-							<div>
-								<span className="card-kicker">Channel Messages</span>
-								<h3>{selectedChannel ? `# ${selectedChannel.name}` : 'Select a channel'}</h3>
-							</div>
-							{selectedChannel ? <span className="channel-pill">Channel</span> : null}
-						</div>
-
-						{!session ? <p className="helper-text">로그인 후 채널 메시지를 확인할 수 있습니다.</p> : null}
-						{session && !selectedChannel ? <p className="helper-text">좌측에서 채널을 선택해주세요.</p> : null}
-						{session && selectedChannel
-							? renderMessageList(
-									channelMessages,
-									isChannelMessagesLoading,
-									channelMessagesError,
-									'아직 채널 메시지가 없습니다.',
-									'Channel messages'
-								)
-							: null}
-
-						<form className="message-composer-form" onSubmit={(event) => void handleSendMessage(event, 'channel')}>
-							<label className="field">
-								<span>Message</span>
-								<textarea
-									value={channelMessageDraft}
-									onChange={(event) => setChannelMessageDraft(event.target.value)}
-									placeholder={
-										selectedChannel ? `${selectedChannel.name}에 메시지 보내기` : '좌측에서 채널을 선택하세요'
-									}
-									rows={4}
-									maxLength={4000}
-									disabled={!session || !selectedChannel || isMessageSending}
-								/>
-							</label>
-							<div className="composer-actions">
-								<small>{channelMessageDraft.trim().length}/4000</small>
-								<button
-									className="primary-button"
-									type="submit"
-									disabled={!session || !selectedChannel || isMessageSending || !channelMessageDraft.trim()}
-								>
-									{isMessageSending ? 'Sending...' : 'Send'}
-								</button>
-							</div>
-						</form>
-
-						{messageComposerStatus ? <p className="helper-text">{messageComposerStatus}</p> : null}
-						{messageComposerError ? <p className="error-message">{messageComposerError}</p> : null}
-					</section>
-
-					<section className="members-panel">
-						<div className="members-panel-heading">
-							<div>
-								<span className="card-kicker">Channel Members</span>
-								<h3>{selectedChannel ? `${selectedChannel.name} members` : 'Select a channel'}</h3>
-							</div>
-							{selectedChannel ? <strong>{channelMembers.length}</strong> : null}
-						</div>
-
-						{!session ? <p className="helper-text">로그인 후 선택한 채널의 멤버 목록이 여기에 표시됩니다.</p> : null}
-						{session && !selectedChannel ? (
-							<p className="helper-text">좌측에서 채널을 선택하면 멤버 목록을 볼 수 있습니다.</p>
-						) : null}
-						{session && selectedChannel && isChannelMembersLoading ? (
-							<p className="helper-text">채널 멤버를 불러오는 중입니다...</p>
-						) : null}
-						{session && selectedChannel && channelMembersError ? (
-							<p className="error-message">{channelMembersError}</p>
-						) : null}
-						{session &&
-						selectedChannel &&
-						!isChannelMembersLoading &&
-						!channelMembersError &&
-						channelMembers.length === 0 ? (
-							<p className="helper-text">아직 표시할 멤버가 없습니다.</p>
-						) : null}
-
-						{channelMembers.length > 0 ? (
-							<div className="member-list" role="list" aria-label="Channel members">
-								{channelMembers.map((member) => (
-									<article key={member.user.id} className="member-card">
-										<div className="member-card-top">
-											<div className="member-avatar" aria-hidden="true">
-												{member.user.displayName.slice(0, 1).toUpperCase()}
-											</div>
-											<div className="member-copy">
-												<strong>{member.user.displayName}</strong>
-												<span>{member.user.email}</span>
-											</div>
-											<span className="channel-pill">{member.role}</span>
-										</div>
-										<p>{member.user.statusMessage ?? '상태 메시지가 아직 없습니다.'}</p>
-									</article>
-								))}
-							</div>
-						) : null}
-					</section>
-
-					<section className="members-panel">
-						<div className="members-panel-heading">
-							<div>
-								<span className="card-kicker">Direct Messages</span>
-								<h3>{selectedDirectConversationCounterpart?.displayName ?? 'Select a DM'}</h3>
-							</div>
-							{selectedDirectConversation ? <strong>{selectedDirectConversation.participants.length}</strong> : null}
-						</div>
-
-						{!session ? <p className="helper-text">로그인 후 DM 목록과 상대방 정보를 확인할 수 있습니다.</p> : null}
-						{session && isDirectConversationsLoading ? (
-							<p className="helper-text">DM 목록을 불러오는 중입니다...</p>
-						) : null}
-						{session && !isDirectConversationsLoading && directConversationError ? (
-							<p className="error-message">{directConversationError}</p>
-						) : null}
-						{session &&
-						!isDirectConversationsLoading &&
-						!directConversationError &&
-						directConversations.length === 0 ? (
-							<p className="helper-text">기존 DM이 생기면 이 패널에서 상대방 정보를 빠르게 확인할 수 있습니다.</p>
-						) : null}
-
-						{selectedDirectConversation && selectedDirectConversationCounterpart ? (
-							<article className="member-card dm-detail-card">
-								<div className="member-card-top">
-									<div className="member-avatar member-avatar-large" aria-hidden="true">
-										{selectedDirectConversationCounterpart.displayName.slice(0, 1).toUpperCase()}
-									</div>
-									<div className="member-copy">
-										<strong>{selectedDirectConversationCounterpart.displayName}</strong>
-										<span>{selectedDirectConversationCounterpart.email}</span>
-									</div>
-									<span className="channel-pill">1:1 DM</span>
 								</div>
-								<p>{selectedDirectConversationCounterpart.statusMessage ?? '아직 상태 메시지가 없습니다.'}</p>
-								<div className="channel-meta">
-									<span>Started {dmDateFormatter.format(new Date(selectedDirectConversation.createdAt))}</span>
-									<span>{selectedDirectConversation.id.slice(0, 8)}</span>
-								</div>
-							</article>
-						) : null}
+							</form>
 
-						{session && selectedDirectConversation
-							? renderMessageList(
-									directConversationMessages,
-									isDirectConversationMessagesLoading,
-									directConversationMessagesError,
-									'아직 DM 메시지가 없습니다.',
-									'Direct conversation messages'
-								)
-							: null}
-
-						<form
-							className="message-composer-form"
-							onSubmit={(event) => void handleSendMessage(event, 'directConversation')}
-						>
-							<label className="field">
-								<span>Message</span>
-								<textarea
-									value={directConversationMessageDraft}
-									onChange={(event) => setDirectConversationMessageDraft(event.target.value)}
-									placeholder={
-										selectedDirectConversationCounterpart
-											? `${selectedDirectConversationCounterpart.displayName}에게 메시지 보내기`
-											: '좌측에서 DM을 선택하세요'
-									}
-									rows={4}
-									maxLength={4000}
-									disabled={!session || !selectedDirectConversation || isMessageSending}
-								/>
-							</label>
-							<div className="composer-actions">
-								<small>{directConversationMessageDraft.trim().length}/4000</small>
-								<button
-									className="primary-button secondary-tone"
-									type="submit"
-									disabled={
-										!session ||
-										!selectedDirectConversation ||
-										isMessageSending ||
-										!directConversationMessageDraft.trim()
-									}
-								>
-									{isMessageSending ? 'Sending...' : 'Send DM'}
-								</button>
-							</div>
-						</form>
-					</section>
-
-					<div className="panel-grid">
-						<section className="auth-card">
-							<div className="card-heading">
-								<span className="card-kicker">Account</span>
-								<h3>{session?.user.email ?? 'Checking session'}</h3>
-							</div>
-
-							<div className="session-stack">
-								<div className="session-summary">
-									<span>Session status</span>
-									<strong>{isSessionLoading ? 'checking' : 'authenticated'}</strong>
-									<small>{session ? `User ID: ${session.user.id}` : '세션을 확인하는 중입니다.'}</small>
-								</div>
-								<button
-									className="primary-button secondary-tone"
-									type="button"
-									onClick={() => void handleLogout()}
-									disabled={isAuthLoading || isSessionLoading}
-								>
-									{isAuthLoading ? 'Signing out...' : 'Log out'}
-								</button>
-							</div>
-
-							{authError ? <p className="error-message">{authError}</p> : null}
+							{messageComposerStatus ? <p className="helper-text">{messageComposerStatus}</p> : null}
+							{messageComposerError ? <p className="error-message">{messageComposerError}</p> : null}
 						</section>
 
-						<aside className="status-card">
-							<span>API Health</span>
-							<strong>{health?.status ?? 'disconnected'}</strong>
-							<small>{lastSeen}</small>
-							<div className="status-divider" />
-							<span>Session Status</span>
-							<strong>{isSessionLoading ? 'checking' : session ? 'authenticated' : 'signed out'}</strong>
-							<small>
-								{session
-									? '채널 목록 API에 access token을 붙여 보호된 요청까지 연결된 상태입니다.'
-									: '로그인 후 채널, DM, 메시지 화면을 이어서 구성할 수 있습니다.'}
-							</small>
-						</aside>
+						<section className="members-panel">
+							<div className="members-panel-heading">
+								<div>
+									<span className="card-kicker">Channel Members</span>
+									<h3>{selectedChannel ? `${selectedChannel.name} members` : 'Select a channel'}</h3>
+								</div>
+								{selectedChannel ? <strong>{channelMembers.length}</strong> : null}
+							</div>
+
+							{!session ? <p className="helper-text">로그인 후 선택한 채널의 멤버 목록이 여기에 표시됩니다.</p> : null}
+							{session && !selectedChannel ? (
+								<p className="helper-text">좌측에서 채널을 선택하면 멤버 목록을 볼 수 있습니다.</p>
+							) : null}
+							{session && selectedChannel && isChannelMembersLoading ? (
+								<p className="helper-text">채널 멤버를 불러오는 중입니다...</p>
+							) : null}
+							{session && selectedChannel && channelMembersError ? (
+								<p className="error-message">{channelMembersError}</p>
+							) : null}
+							{session &&
+							selectedChannel &&
+							!isChannelMembersLoading &&
+							!channelMembersError &&
+							channelMembers.length === 0 ? (
+								<p className="helper-text">아직 표시할 멤버가 없습니다.</p>
+							) : null}
+
+							{channelMembers.length > 0 ? (
+								<div className="member-list" role="list" aria-label="Channel members">
+									{channelMembers.map((member) => (
+										<article key={member.user.id} className="member-card">
+											<div className="member-card-top">
+												<div className="member-avatar" aria-hidden="true">
+													{member.user.displayName.slice(0, 1).toUpperCase()}
+												</div>
+												<div className="member-copy">
+													<strong>{member.user.displayName}</strong>
+													<span>{member.user.email}</span>
+												</div>
+												<span className="channel-pill">{member.role}</span>
+											</div>
+											<p>{member.user.statusMessage ?? '상태 메시지가 아직 없습니다.'}</p>
+										</article>
+									))}
+								</div>
+							) : null}
+						</section>
+
+						<section className="members-panel">
+							<div className="members-panel-heading">
+								<div>
+									<span className="card-kicker">Direct Messages</span>
+									<h3>{selectedDirectConversationCounterpart?.displayName ?? 'Select a DM'}</h3>
+								</div>
+								{selectedDirectConversation ? <strong>{selectedDirectConversation.participants.length}</strong> : null}
+							</div>
+
+							{!session ? <p className="helper-text">로그인 후 DM 목록과 상대방 정보를 확인할 수 있습니다.</p> : null}
+							{session && isDirectConversationsLoading ? (
+								<p className="helper-text">DM 목록을 불러오는 중입니다...</p>
+							) : null}
+							{session && !isDirectConversationsLoading && directConversationError ? (
+								<p className="error-message">{directConversationError}</p>
+							) : null}
+							{session &&
+							!isDirectConversationsLoading &&
+							!directConversationError &&
+							directConversations.length === 0 ? (
+								<p className="helper-text">기존 DM이 생기면 이 패널에서 상대방 정보를 빠르게 확인할 수 있습니다.</p>
+							) : null}
+
+							{selectedDirectConversation && selectedDirectConversationCounterpart ? (
+								<article className="member-card dm-detail-card">
+									<div className="member-card-top">
+										<div className="member-avatar member-avatar-large" aria-hidden="true">
+											{selectedDirectConversationCounterpart.displayName.slice(0, 1).toUpperCase()}
+										</div>
+										<div className="member-copy">
+											<strong>{selectedDirectConversationCounterpart.displayName}</strong>
+											<span>{selectedDirectConversationCounterpart.email}</span>
+										</div>
+										<span className="channel-pill">1:1 DM</span>
+									</div>
+									<p>{selectedDirectConversationCounterpart.statusMessage ?? '아직 상태 메시지가 없습니다.'}</p>
+									<div className="channel-meta">
+										<span>Started {dmDateFormatter.format(new Date(selectedDirectConversation.createdAt))}</span>
+										<span>{selectedDirectConversation.id.slice(0, 8)}</span>
+									</div>
+								</article>
+							) : null}
+
+							{session && selectedDirectConversation
+								? renderMessageList(
+										directConversationMessages,
+										isDirectConversationMessagesLoading,
+										directConversationMessagesError,
+										'아직 DM 메시지가 없습니다.',
+										'Direct conversation messages'
+									)
+								: null}
+
+							<form
+								className="message-composer-form"
+								onSubmit={(event) => void handleSendMessage(event, 'directConversation')}
+							>
+								<label className="field">
+									<span>Message</span>
+									<textarea
+										value={directConversationMessageDraft}
+										onChange={(event) => setDirectConversationMessageDraft(event.target.value)}
+										placeholder={
+											selectedDirectConversationCounterpart
+												? `${selectedDirectConversationCounterpart.displayName}에게 메시지 보내기`
+												: '좌측에서 DM을 선택하세요'
+										}
+										rows={4}
+										maxLength={4000}
+										disabled={!session || !selectedDirectConversation || isMessageSending}
+									/>
+								</label>
+								<div className="composer-actions">
+									<small>{directConversationMessageDraft.trim().length}/4000</small>
+									<button
+										className="primary-button secondary-tone"
+										type="submit"
+										disabled={
+											!session ||
+											!selectedDirectConversation ||
+											isMessageSending ||
+											!directConversationMessageDraft.trim()
+										}
+									>
+										{isMessageSending ? 'Sending...' : 'Send DM'}
+									</button>
+								</div>
+							</form>
+						</section>
+
+						<div className="panel-grid panel-grid-status">
+							<aside className="status-card">
+								<span>API Health</span>
+								<strong>{health?.status ?? 'disconnected'}</strong>
+								<small>{lastSeen}</small>
+								<div className="status-divider" />
+								<span>Session Status</span>
+								<strong>{isSessionLoading ? 'checking' : session ? 'authenticated' : 'signed out'}</strong>
+								<small>
+									{session
+										? '채널 목록 API에 access token을 붙여 보호된 요청까지 연결된 상태입니다.'
+										: '로그인 후 채널, DM, 메시지 화면을 이어서 구성할 수 있습니다.'}
+								</small>
+							</aside>
+						</div>
 					</div>
-				</div>
-			</section>
-		</main>
+				</section>
+			</SidebarInset>
+		</SidebarProvider>
 	);
 }
 
