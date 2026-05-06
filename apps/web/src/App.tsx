@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import { useNavigate, useParams } from 'react-router';
 import { supabase } from './lib/supabase';
 
 type HealthResponse = {
@@ -120,6 +121,11 @@ function upsertMessage(messages: MessageItem[], incomingMessage: MessageItem) {
 }
 
 function App() {
+	const navigate = useNavigate();
+	const { channelId, conversationId } = useParams<{
+		channelId?: string;
+		conversationId?: string;
+	}>();
 	const [health, setHealth] = useState<HealthResponse | null>(null);
 	const [session, setSession] = useState<Session | null>(null);
 	const [email, setEmail] = useState('');
@@ -154,6 +160,37 @@ function App() {
 	const [isDirectConversationMessagesLoading, setIsDirectConversationMessagesLoading] = useState(false);
 	const selectedChannelIdRef = useRef<string | null>(null);
 	const selectedDirectConversationIdRef = useRef<string | null>(null);
+
+	useEffect(() => {
+		if (channelId) {
+			setSelectedChannelId(channelId);
+			setSelectedDirectConversationId(null);
+			return;
+		}
+
+		if (conversationId) {
+			setSelectedDirectConversationId(conversationId);
+			setSelectedChannelId(null);
+			return;
+		}
+
+		setSelectedChannelId(null);
+		setSelectedDirectConversationId(null);
+	}, [channelId, conversationId]);
+
+	const handleSelectChannel = useCallback(
+		(nextChannelId: string) => {
+			navigate(`/channels/${nextChannelId}`);
+		},
+		[navigate]
+	);
+
+	const handleSelectDirectConversation = useCallback(
+		(nextConversationId: string) => {
+			navigate(`/dms/${nextConversationId}`);
+		},
+		[navigate]
+	);
 
 	useEffect(() => {
 		selectedChannelIdRef.current = selectedChannelId;
@@ -251,13 +288,6 @@ function App() {
 				}
 
 				setChannels(data.channels);
-				setSelectedChannelId((currentSelectedChannelId) => {
-					if (currentSelectedChannelId && data.channels.some((channel) => channel.id === currentSelectedChannelId)) {
-						return currentSelectedChannelId;
-					}
-
-					return data.channels[0]?.id ?? null;
-				});
 			} catch (error) {
 				if (isCancelled) {
 					return;
@@ -313,16 +343,6 @@ function App() {
 				}
 
 				setDirectConversations(data.conversations);
-				setSelectedDirectConversationId((currentSelectedDirectConversationId) => {
-					if (
-						currentSelectedDirectConversationId &&
-						data.conversations.some((conversation) => conversation.id === currentSelectedDirectConversationId)
-					) {
-						return currentSelectedDirectConversationId;
-					}
-
-					return data.conversations[0]?.id ?? null;
-				});
 			} catch (error) {
 				if (isCancelled) {
 					return;
@@ -1074,7 +1094,7 @@ function App() {
 										key={channel.id}
 										type="button"
 										className={`channel-card${isSelected ? ' channel-card-active' : ''}`}
-										onClick={() => setSelectedChannelId(channel.id)}
+										onClick={() => handleSelectChannel(channel.id)}
 									>
 										<div className="channel-card-top">
 											<div>
@@ -1125,7 +1145,7 @@ function App() {
 										key={conversation.id}
 										type="button"
 										className={`dm-card${isSelected ? ' dm-card-active' : ''}`}
-										onClick={() => setSelectedDirectConversationId(conversation.id)}
+										onClick={() => handleSelectDirectConversation(conversation.id)}
 									>
 										<div className="dm-card-top">
 											<div className="member-avatar dm-avatar" aria-hidden="true">
