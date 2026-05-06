@@ -108,6 +108,13 @@ textarea {
 	min-height: 100vh;
 }
 
+.login-shell {
+	min-height: 100vh;
+	display: grid;
+	place-items: center;
+	padding: 24px;
+}
+
 .workspace-shell {
 	min-height: 100vh;
 	display: grid;
