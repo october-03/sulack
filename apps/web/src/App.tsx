@@ -58,10 +58,50 @@ type DirectConversationListResponse = {
 	conversations: DirectConversationItem[];
 };
 
+type MessageItem = {
+	id: string;
+	channelId: string | null;
+	conversationId: string | null;
+	author: {
+		id: string;
+		email: string;
+		displayName: string;
+		avatarUrl: string | null;
+		statusMessage: string | null;
+	};
+	content: string;
+	messageType: 'text' | 'system' | 'file';
+	createdAt: string;
+	updatedAt: string;
+	deletedAt: string | null;
+	attachments: Array<{
+		id: string;
+		originalName: string;
+		mimeType: string;
+		sizeBytes: string;
+	}>;
+};
+
+type MessageListResponse = {
+	messages: MessageItem[];
+	hasMore: boolean;
+	nextBefore: string | null;
+};
+
+type MessageResponse = {
+	message: MessageItem;
+};
+
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 const dmDateFormatter = new Intl.DateTimeFormat('ko-KR', {
 	month: 'short',
 	day: 'numeric'
+});
+const messageTimeFormatter = new Intl.DateTimeFormat('ko-KR', {
+	month: 'short',
+	day: 'numeric',
+	hour: '2-digit',
+	minute: '2-digit'
 });
 
 type MessageTarget = 'channel' | 'directConversation';
@@ -84,12 +124,18 @@ function App() {
 	const [directConversationMessageDraft, setDirectConversationMessageDraft] = useState('');
 	const [messageComposerError, setMessageComposerError] = useState<string | null>(null);
 	const [messageComposerStatus, setMessageComposerStatus] = useState<string | null>(null);
+	const [channelMessages, setChannelMessages] = useState<MessageItem[]>([]);
+	const [directConversationMessages, setDirectConversationMessages] = useState<MessageItem[]>([]);
+	const [channelMessagesError, setChannelMessagesError] = useState<string | null>(null);
+	const [directConversationMessagesError, setDirectConversationMessagesError] = useState<string | null>(null);
 	const [isAuthLoading, setIsAuthLoading] = useState(false);
 	const [isSessionLoading, setIsSessionLoading] = useState(true);
 	const [isChannelsLoading, setIsChannelsLoading] = useState(false);
 	const [isChannelMembersLoading, setIsChannelMembersLoading] = useState(false);
 	const [isDirectConversationsLoading, setIsDirectConversationsLoading] = useState(false);
 	const [isMessageSending, setIsMessageSending] = useState(false);
+	const [isChannelMessagesLoading, setIsChannelMessagesLoading] = useState(false);
+	const [isDirectConversationMessagesLoading, setIsDirectConversationMessagesLoading] = useState(false);
 
 	useEffect(() => {
 		void fetch(`${apiBaseUrl}/health`)
@@ -134,14 +180,20 @@ function App() {
 			setSelectedDirectConversationId(null);
 			setChannelMessageDraft('');
 			setDirectConversationMessageDraft('');
+			setChannelMessages([]);
+			setDirectConversationMessages([]);
 			setChannelError(null);
 			setChannelMembersError(null);
 			setDirectConversationError(null);
+			setChannelMessagesError(null);
+			setDirectConversationMessagesError(null);
 			setMessageComposerError(null);
 			setMessageComposerStatus(null);
 			setIsChannelsLoading(false);
 			setIsChannelMembersLoading(false);
 			setIsDirectConversationsLoading(false);
+			setIsChannelMessagesLoading(false);
+			setIsDirectConversationMessagesLoading(false);
 			setIsMessageSending(false);
 			return;
 		}
@@ -317,6 +369,115 @@ function App() {
 		};
 	}, [selectedChannelId, session]);
 
+	useEffect(() => {
+		if (!session || !selectedChannelId) {
+			setChannelMessages([]);
+			setChannelMessagesError(null);
+			setIsChannelMessagesLoading(false);
+			return;
+		}
+
+		let isCancelled = false;
+
+		const loadChannelMessages = async () => {
+			setIsChannelMessagesLoading(true);
+			setChannelMessagesError(null);
+
+			try {
+				const response = await fetch(`${apiBaseUrl}/channels/${selectedChannelId}/messages?limit=50`, {
+					headers: {
+						Authorization: `Bearer ${session.access_token}`
+					}
+				});
+
+				if (!response.ok) {
+					throw new Error(`채널 메시지를 불러오지 못했습니다. (${response.status})`);
+				}
+
+				const data = (await response.json()) as MessageListResponse;
+
+				if (isCancelled) {
+					return;
+				}
+
+				setChannelMessages(data.messages);
+			} catch (error) {
+				if (isCancelled) {
+					return;
+				}
+
+				setChannelMessages([]);
+				setChannelMessagesError(error instanceof Error ? error.message : '채널 메시지를 불러오지 못했습니다.');
+			} finally {
+				if (!isCancelled) {
+					setIsChannelMessagesLoading(false);
+				}
+			}
+		};
+
+		void loadChannelMessages();
+
+		return () => {
+			isCancelled = true;
+		};
+	}, [selectedChannelId, session]);
+
+	useEffect(() => {
+		if (!session || !selectedDirectConversationId) {
+			setDirectConversationMessages([]);
+			setDirectConversationMessagesError(null);
+			setIsDirectConversationMessagesLoading(false);
+			return;
+		}
+
+		let isCancelled = false;
+
+		const loadDirectConversationMessages = async () => {
+			setIsDirectConversationMessagesLoading(true);
+			setDirectConversationMessagesError(null);
+
+			try {
+				const response = await fetch(
+					`${apiBaseUrl}/direct-conversations/${selectedDirectConversationId}/messages?limit=50`,
+					{
+						headers: {
+							Authorization: `Bearer ${session.access_token}`
+						}
+					}
+				);
+
+				if (!response.ok) {
+					throw new Error(`DM 메시지를 불러오지 못했습니다. (${response.status})`);
+				}
+
+				const data = (await response.json()) as MessageListResponse;
+
+				if (isCancelled) {
+					return;
+				}
+
+				setDirectConversationMessages(data.messages);
+			} catch (error) {
+				if (isCancelled) {
+					return;
+				}
+
+				setDirectConversationMessages([]);
+				setDirectConversationMessagesError(error instanceof Error ? error.message : 'DM 메시지를 불러오지 못했습니다.');
+			} finally {
+				if (!isCancelled) {
+					setIsDirectConversationMessagesLoading(false);
+				}
+			}
+		};
+
+		void loadDirectConversationMessages();
+
+		return () => {
+			isCancelled = true;
+		};
+	}, [selectedDirectConversationId, session]);
+
 	const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		setIsAuthLoading(true);
@@ -395,11 +556,15 @@ function App() {
 				throw new Error(`메시지를 보내지 못했습니다. (${response.status})`);
 			}
 
+			const data = (await response.json()) as MessageResponse;
+
 			if (isChannelTarget) {
 				setChannelMessageDraft('');
+				setChannelMessages((currentMessages) => [...currentMessages, data.message]);
 				setMessageComposerStatus('채널 메시지를 보냈습니다.');
 			} else {
 				setDirectConversationMessageDraft('');
+				setDirectConversationMessages((currentMessages) => [...currentMessages, data.message]);
 				setMessageComposerStatus('DM 메시지를 보냈습니다.');
 			}
 		} catch (error) {
@@ -429,6 +594,48 @@ function App() {
 		selectedDirectConversation?.participants.find((participant) => participant.id !== session?.user.id) ??
 		selectedDirectConversation?.participants[0] ??
 		null;
+	const renderMessageList = (
+		messages: MessageItem[],
+		isLoading: boolean,
+		error: string | null,
+		emptyMessage: string,
+		ariaLabel: string
+	) => {
+		if (isLoading) {
+			return <p className="helper-text">메시지를 불러오는 중입니다...</p>;
+		}
+
+		if (error) {
+			return <p className="error-message">{error}</p>;
+		}
+
+		if (messages.length === 0) {
+			return <p className="helper-text">{emptyMessage}</p>;
+		}
+
+		return (
+			<div className="message-list" role="list" aria-label={ariaLabel}>
+				{messages.map((message) => {
+					const isMine = message.author.id === session?.user.id;
+
+					return (
+						<article key={message.id} className={`message-row${isMine ? ' message-row-mine' : ''}`}>
+							<div className="member-avatar message-avatar" aria-hidden="true">
+								{message.author.displayName.slice(0, 1).toUpperCase()}
+							</div>
+							<div className="message-bubble">
+								<div className="message-meta">
+									<strong>{message.author.displayName}</strong>
+									<span>{messageTimeFormatter.format(new Date(message.createdAt))}</span>
+								</div>
+								<p>{message.deletedAt ? '삭제된 메시지입니다.' : message.content}</p>
+							</div>
+						</article>
+					);
+				})}
+			</div>
+		);
+	};
 
 	return (
 		<main className="workspace-shell">
@@ -572,11 +779,23 @@ function App() {
 					<section className="message-composer-panel">
 						<div className="members-panel-heading">
 							<div>
-								<span className="card-kicker">Message Composer</span>
+								<span className="card-kicker">Channel Messages</span>
 								<h3>{selectedChannel ? `# ${selectedChannel.name}` : 'Select a channel'}</h3>
 							</div>
 							{selectedChannel ? <span className="channel-pill">Channel</span> : null}
 						</div>
+
+						{!session ? <p className="helper-text">로그인 후 채널 메시지를 확인할 수 있습니다.</p> : null}
+						{session && !selectedChannel ? <p className="helper-text">좌측에서 채널을 선택해주세요.</p> : null}
+						{session && selectedChannel
+							? renderMessageList(
+									channelMessages,
+									isChannelMessagesLoading,
+									channelMessagesError,
+									'아직 채널 메시지가 없습니다.',
+									'Channel messages'
+								)
+							: null}
 
 						<form className="message-composer-form" onSubmit={(event) => void handleSendMessage(event, 'channel')}>
 							<label className="field">
@@ -698,6 +917,16 @@ function App() {
 								</div>
 							</article>
 						) : null}
+
+						{session && selectedDirectConversation
+							? renderMessageList(
+									directConversationMessages,
+									isDirectConversationMessagesLoading,
+									directConversationMessagesError,
+									'아직 DM 메시지가 없습니다.',
+									'Direct conversation messages'
+								)
+							: null}
 
 						<form
 							className="message-composer-form"
