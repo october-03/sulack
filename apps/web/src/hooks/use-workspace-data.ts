@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { getChannels } from '@/api/channels';
 import { getDirectConversations } from '@/api/direct-conversations';
@@ -11,6 +11,70 @@ export function useWorkspaceData(session: Session | null, isSessionLoading: bool
 	const [directConversationError, setDirectConversationError] = useState<string | null>(null);
 	const [isChannelsLoading, setIsChannelsLoading] = useState(false);
 	const [isDirectConversationsLoading, setIsDirectConversationsLoading] = useState(false);
+
+	const refreshChannels = useCallback(
+		async (signal?: AbortSignal) => {
+			if (!session) {
+				setChannels([]);
+				setChannelError(null);
+				setIsChannelsLoading(false);
+				return;
+			}
+
+			setIsChannelsLoading(true);
+			setChannelError(null);
+
+			try {
+				setChannels(await getChannels(session.access_token, signal));
+			} catch (error) {
+				if (error instanceof DOMException && error.name === 'AbortError') {
+					return;
+				}
+
+				setChannels([]);
+				setChannelError(
+					error instanceof Error
+						? `채널 목록을 불러오지 못했습니다. (${error.message})`
+						: '채널 목록을 불러오지 못했습니다.'
+				);
+			} finally {
+				setIsChannelsLoading(false);
+			}
+		},
+		[session]
+	);
+
+	const refreshDirectConversations = useCallback(
+		async (signal?: AbortSignal) => {
+			if (!session) {
+				setDirectConversations([]);
+				setDirectConversationError(null);
+				setIsDirectConversationsLoading(false);
+				return;
+			}
+
+			setIsDirectConversationsLoading(true);
+			setDirectConversationError(null);
+
+			try {
+				setDirectConversations(await getDirectConversations(session.access_token, signal));
+			} catch (error) {
+				if (error instanceof DOMException && error.name === 'AbortError') {
+					return;
+				}
+
+				setDirectConversations([]);
+				setDirectConversationError(
+					error instanceof Error
+						? `DM 목록을 불러오지 못했습니다. (${error.message})`
+						: 'DM 목록을 불러오지 못했습니다.'
+				);
+			} finally {
+				setIsDirectConversationsLoading(false);
+			}
+		},
+		[session]
+	);
 
 	useEffect(() => {
 		if (isSessionLoading) {
@@ -26,34 +90,12 @@ export function useWorkspaceData(session: Session | null, isSessionLoading: bool
 
 		const abortController = new AbortController();
 
-		const loadChannels = async () => {
-			setIsChannelsLoading(true);
-			setChannelError(null);
-
-			try {
-				setChannels(await getChannels(session.access_token, abortController.signal));
-			} catch (error) {
-				if (error instanceof DOMException && error.name === 'AbortError') {
-					return;
-				}
-
-				setChannels([]);
-				setChannelError(
-					error instanceof Error
-						? `채널 목록을 불러오지 못했습니다. (${error.message})`
-						: '채널 목록을 불러오지 못했습니다.'
-				);
-			} finally {
-				setIsChannelsLoading(false);
-			}
-		};
-
-		void loadChannels();
+		void refreshChannels(abortController.signal);
 
 		return () => {
 			abortController.abort();
 		};
-	}, [isSessionLoading, session]);
+	}, [isSessionLoading, refreshChannels, session]);
 
 	useEffect(() => {
 		if (isSessionLoading) {
@@ -69,34 +111,12 @@ export function useWorkspaceData(session: Session | null, isSessionLoading: bool
 
 		const abortController = new AbortController();
 
-		const loadDirectConversations = async () => {
-			setIsDirectConversationsLoading(true);
-			setDirectConversationError(null);
-
-			try {
-				setDirectConversations(await getDirectConversations(session.access_token, abortController.signal));
-			} catch (error) {
-				if (error instanceof DOMException && error.name === 'AbortError') {
-					return;
-				}
-
-				setDirectConversations([]);
-				setDirectConversationError(
-					error instanceof Error
-						? `DM 목록을 불러오지 못했습니다. (${error.message})`
-						: 'DM 목록을 불러오지 못했습니다.'
-				);
-			} finally {
-				setIsDirectConversationsLoading(false);
-			}
-		};
-
-		void loadDirectConversations();
+		void refreshDirectConversations(abortController.signal);
 
 		return () => {
 			abortController.abort();
 		};
-	}, [isSessionLoading, session]);
+	}, [isSessionLoading, refreshDirectConversations, session]);
 
 	return {
 		channelError,
@@ -104,6 +124,8 @@ export function useWorkspaceData(session: Session | null, isSessionLoading: bool
 		directConversationError,
 		directConversations,
 		isChannelsLoading,
-		isDirectConversationsLoading
+		isDirectConversationsLoading,
+		refreshChannels,
+		refreshDirectConversations
 	};
 }

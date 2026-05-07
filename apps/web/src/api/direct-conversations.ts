@@ -5,6 +5,10 @@ type DirectConversationListResponse = {
 	conversations: DirectConversationItem[];
 };
 
+type DirectConversationResponse = {
+	conversation: DirectConversationItem;
+};
+
 export async function getDirectConversations(accessToken: string, signal?: AbortSignal) {
 	const data = await apiRequest<DirectConversationListResponse>('/direct-conversations', {
 		accessToken,
@@ -12,4 +16,17 @@ export async function getDirectConversations(accessToken: string, signal?: Abort
 	});
 
 	return data.conversations;
+}
+
+export async function createDirectConversation(accessToken: string, userId: string) {
+	const data = await apiRequest<DirectConversationResponse>('/direct-conversations', {
+		accessToken,
+		body: JSON.stringify({ userId }),
+		headers: {
+			'Content-Type': 'application/json'
+		},
+		method: 'POST'
+	});
+
+	return data.conversation;
 }

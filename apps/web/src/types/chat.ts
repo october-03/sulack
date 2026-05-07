@@ -10,6 +10,12 @@ export type ChannelItem = {
 	} | null;
 };
 
+export type CreateChannelPayload = {
+	name: string;
+	description?: string;
+	visibility: 'public' | 'private';
+};
+
 export type DirectConversationParticipant = {
 	id: string;
 	email: string;
@@ -23,6 +29,14 @@ export type DirectConversationItem = {
 	id: string;
 	createdAt: string;
 	participants: DirectConversationParticipant[];
+};
+
+export type SearchProfileItem = {
+	id: string;
+	email: string;
+	displayName: string;
+	avatarUrl: string | null;
+	statusMessage: string | null;
 };
 
 export type MessageItem = {

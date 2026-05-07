@@ -43,6 +43,14 @@ export class ChannelsController {
 		return ChannelListResponseDto.from(channels);
 	}
 
+	@Get('discover')
+	@ApiOperation({ summary: 'List public channels the current authenticated user can join' })
+	@ApiOkResponse({ type: ChannelListResponseDto })
+	async discoverChannels(@CurrentUser() authUser: AuthenticatedRequestUser) {
+		const channels = await this.channelsService.discoverChannels(authUser.user);
+		return ChannelListResponseDto.from(channels);
+	}
+
 	@Get(':channelId')
 	@ApiOperation({ summary: 'Get a channel visible to the current authenticated user' })
 	@ApiOkResponse({ type: ChannelResponseDto })

@@ -83,6 +83,27 @@ export class ChannelsService {
 		});
 	}
 
+	async discoverChannels(user: SupabaseUser): Promise<ChannelSummary[]> {
+		await this.profilesService.ensureMyProfile(user);
+
+		return this.prismaService.channel.findMany({
+			where: {
+				visibility: ChannelVisibility.public,
+				members: {
+					none: {
+						userId: user.id
+					}
+				}
+			},
+			orderBy: [
+				{
+					createdAt: 'asc'
+				}
+			],
+			include: buildChannelSummaryInclude(user.id)
+		});
+	}
+
 	async getChannel(user: SupabaseUser, channelId: string): Promise<ChannelSummary> {
 		await this.profilesService.ensureMyProfile(user);
 
