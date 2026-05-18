@@ -253,6 +253,76 @@ export class ChannelsService {
 		});
 	}
 
+	async addChannelMember(user: SupabaseUser, channelId: string, invitedUserId: string): Promise<ChannelSummary> {
+		await this.profilesService.ensureMyProfile(user);
+
+		return this.prismaService.$transaction(async (tx) => {
+			const channel = await tx.channel.findUnique({
+				where: {
+					id: channelId
+				},
+				select: {
+					id: true,
+					visibility: true,
+					members: {
+						where: {
+							userId: user.id
+						},
+						select: {
+							role: true
+						}
+					}
+				}
+			});
+
+			if (!channel || channel.members.length === 0) {
+				throw new NotFoundException('Channel not found or inaccessible.');
+			}
+
+			const [requesterMembership] = channel.members;
+
+			if (channel.visibility === ChannelVisibility.private && requesterMembership.role !== ChannelMemberRole.admin) {
+				throw new ForbiddenException('Only channel admins can add members.');
+			}
+
+			const invitedProfile = await tx.profile.findFirst({
+				where: {
+					id: invitedUserId,
+					isDeleted: false
+				},
+				select: {
+					id: true
+				}
+			});
+
+			if (!invitedProfile) {
+				throw new NotFoundException('Invited profile not found.');
+			}
+
+			await tx.channelMember.upsert({
+				where: {
+					channelId_userId: {
+						channelId,
+						userId: invitedUserId
+					}
+				},
+				create: {
+					channelId,
+					userId: invitedUserId,
+					role: ChannelMemberRole.member
+				},
+				update: {}
+			});
+
+			return tx.channel.findUniqueOrThrow({
+				where: {
+					id: channelId
+				},
+				include: buildChannelSummaryInclude(user.id)
+			});
+		});
+	}
+
 	async listChannelMembers(user: SupabaseUser, channelId: string): Promise<ChannelMemberListItem[]> {
 		await this.profilesService.ensureMyProfile(user);
 

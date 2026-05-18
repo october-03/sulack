@@ -5,7 +5,13 @@ import { MessageComposer } from '@/components/chat/message-composer';
 import { MessageList } from '@/components/chat/message-list';
 import { SidebarInset } from '@/components/ui/sidebar';
 import type { useMessageThread } from '@/hooks/use-message-thread';
-import type { ChannelItem, DirectConversationItem, DirectConversationParticipant } from '@/types/chat';
+import type {
+	ChannelItem,
+	ChannelMemberItem,
+	DirectConversationItem,
+	DirectConversationParticipant,
+	SearchProfileItem
+} from '@/types/chat';
 
 type MessageThread = ReturnType<typeof useMessageThread>;
 
@@ -14,6 +20,9 @@ type ChatPanelProps = {
 	currentUserId: string | null;
 	directConversationThread: MessageThread;
 	isAuthenticated: boolean;
+	onAddChannelMember: (channelId: string, userId: string) => Promise<ChannelItem>;
+	onGetChannelMembers: (channelId: string, signal?: AbortSignal) => Promise<ChannelMemberItem[]>;
+	onSearchProfiles: (query: string) => Promise<SearchProfileItem[]>;
 	selectedChannel: ChannelItem | null;
 	selectedDirectConversation: DirectConversationItem | null;
 	selectedDirectConversationCounterpart: DirectConversationParticipant | null;
@@ -24,6 +33,9 @@ export function ChatPanel({
 	currentUserId,
 	directConversationThread,
 	isAuthenticated,
+	onAddChannelMember,
+	onGetChannelMembers,
+	onSearchProfiles,
 	selectedChannel,
 	selectedDirectConversation,
 	selectedDirectConversationCounterpart
@@ -48,7 +60,16 @@ export function ChatPanel({
 
 	return (
 		<SidebarInset className="chat-layout">
-			<ChatHeader memberCount={selectedChannel?.memberCount} title={currentPageLabel} variant={headerVariant} />
+			<ChatHeader
+				memberCount={selectedChannel?.memberCount}
+				onAddChannelMember={onAddChannelMember}
+				onGetChannelMembers={onGetChannelMembers}
+				onSearchProfiles={onSearchProfiles}
+				participants={selectedDirectConversation?.participants}
+				selectedChannel={selectedChannel}
+				title={currentPageLabel}
+				variant={headerVariant}
+			/>
 			<section className="chat-screen">
 				<div className="chat-scroll" ref={chatScrollRef}>
 					{selectedChannel ? (

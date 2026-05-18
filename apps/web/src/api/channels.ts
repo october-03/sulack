@@ -1,5 +1,5 @@
 import { apiRequest } from '@/api/http';
-import type { ChannelItem, CreateChannelPayload } from '@/types/chat';
+import type { ChannelItem, ChannelMemberItem, CreateChannelPayload } from '@/types/chat';
 
 type ChannelListResponse = {
 	channels: ChannelItem[];
@@ -7,6 +7,10 @@ type ChannelListResponse = {
 
 type ChannelResponse = {
 	channel: ChannelItem;
+};
+
+type ChannelMemberListResponse = {
+	members: ChannelMemberItem[];
 };
 
 export async function getChannels(accessToken: string, signal?: AbortSignal) {
@@ -43,6 +47,28 @@ export async function createChannel(accessToken: string, payload: CreateChannelP
 export async function joinPublicChannel(accessToken: string, channelId: string) {
 	const data = await apiRequest<ChannelResponse>(`/channels/${channelId}/join`, {
 		accessToken,
+		method: 'POST'
+	});
+
+	return data.channel;
+}
+
+export async function getChannelMembers(accessToken: string, channelId: string, signal?: AbortSignal) {
+	const data = await apiRequest<ChannelMemberListResponse>(`/channels/${channelId}/members`, {
+		accessToken,
+		signal
+	});
+
+	return data.members;
+}
+
+export async function addChannelMember(accessToken: string, channelId: string, userId: string) {
+	const data = await apiRequest<ChannelResponse>(`/channels/${channelId}/members`, {
+		accessToken,
+		body: JSON.stringify({ userId }),
+		headers: {
+			'Content-Type': 'application/json'
+		},
 		method: 'POST'
 	});
 

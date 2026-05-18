@@ -105,6 +105,21 @@ export class ChannelsController {
 		return ChannelResponseDto.from(channel);
 	}
 
+	@Post(':channelId/members')
+	@ApiOperation({ summary: 'Add a user into a channel as the current authenticated admin' })
+	@ApiOkResponse({ type: ChannelResponseDto })
+	@ApiForbiddenResponse({
+		description: 'Only channel admins can add members.'
+	})
+	async addChannelMember(
+		@CurrentUser() authUser: AuthenticatedRequestUser,
+		@Param('channelId', new ParseUUIDPipe()) channelId: string,
+		@Body() payload: InviteToPrivateChannelDto
+	) {
+		const channel = await this.channelsService.addChannelMember(authUser.user, channelId, payload.userId);
+		return ChannelResponseDto.from(channel);
+	}
+
 	@Post()
 	@ApiOperation({ summary: 'Create a new channel' })
 	@ApiCreatedResponse({ type: ChannelResponseDto })

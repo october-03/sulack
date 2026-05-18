@@ -16,6 +16,18 @@ export type CreateChannelPayload = {
 	visibility: 'public' | 'private';
 };
 
+export type ChannelMemberItem = {
+	user: {
+		id: string;
+		email: string;
+		displayName: string;
+		avatarUrl: string | null;
+		statusMessage: string | null;
+	};
+	role: 'admin' | 'member';
+	joinedAt: string;
+};
+
 export type DirectConversationParticipant = {
 	id: string;
 	email: string;

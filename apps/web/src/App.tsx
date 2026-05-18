@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
-import { createChannel, discoverChannels, joinPublicChannel } from '@/api/channels';
+import { addChannelMember, createChannel, discoverChannels, getChannelMembers, joinPublicChannel } from '@/api/channels';
 import { createDirectConversation } from '@/api/direct-conversations';
 import { searchProfiles } from '@/api/profiles';
 import { AppSidebar } from '@/components/app-sidebar';
@@ -116,6 +116,30 @@ function App() {
 		[navigate, refreshChannels, session]
 	);
 
+	const handleGetChannelMembers = useCallback(
+		async (channelIdToLoad: string, signal?: AbortSignal) => {
+			if (!session) {
+				throw new Error('로그인이 필요합니다.');
+			}
+
+			return getChannelMembers(session.access_token, channelIdToLoad, signal);
+		},
+		[session]
+	);
+
+	const handleAddChannelMember = useCallback(
+		async (channelIdToUpdate: string, userId: string) => {
+			if (!session) {
+				throw new Error('로그인이 필요합니다.');
+			}
+
+			const channel = await addChannelMember(session.access_token, channelIdToUpdate, userId);
+			await refreshChannels();
+			return channel;
+		},
+		[refreshChannels, session]
+	);
+
 	const handleSearchProfiles = useCallback(
 		async (query: string) => {
 			if (!session) {
@@ -179,6 +203,9 @@ function App() {
 				currentUserId={session?.user.id ?? null}
 				directConversationThread={directConversationThread}
 				isAuthenticated={Boolean(session)}
+				onAddChannelMember={handleAddChannelMember}
+				onGetChannelMembers={handleGetChannelMembers}
+				onSearchProfiles={handleSearchProfiles}
 				selectedChannel={selectedChannel}
 				selectedDirectConversation={selectedDirectConversation}
 				selectedDirectConversationCounterpart={selectedDirectConversationCounterpart}
